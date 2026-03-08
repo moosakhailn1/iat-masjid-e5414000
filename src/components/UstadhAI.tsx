@@ -86,7 +86,7 @@ const UstadhAI = () => {
   }, [messages]);
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || remaining <= 0 || isLoading) return;
+    if (!text.trim() || (!isUnlimited && remaining <= 0) || isLoading) return;
 
     const userMsg: Message = { role: 'user', content: text };
     const newMessages = [...messages, userMsg];
