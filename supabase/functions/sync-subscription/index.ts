@@ -70,44 +70,71 @@ serve(async (req) => {
     const user = userData.user;
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    if (customers.data.length === 0) {
-      return new Response(JSON.stringify({ synced: false, reason: "no_customer" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const customer = customers.data[0];
+    const normalizedEmail = user.email.trim().toLowerCase();
+    const customers = await stripe.customers.list({ email: normalizedEmail, limit: 1 });
 
     let targetPlan: string | null = null;
     let expiresAt: string | null = null;
 
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customer.id,
-      status: "active",
-      limit: 10,
-      expand: ["data.items.data.price.product"],
-    });
+    if (customers.data.length > 0) {
+      const customer = customers.data[0];
 
-    if (subscriptions.data.length > 0) {
-      const latestSub = subscriptions.data.sort((a, b) => b.created - a.created)[0];
-      const product = latestSub.items.data[0]?.price?.product;
-      const productName = typeof product === "string" ? "" : product?.name;
-      targetPlan = planFromProductName(productName);
-      expiresAt = new Date(latestSub.current_period_end * 1000).toISOString();
-    }
-
-    if (!targetPlan) {
-      const sessions = await stripe.checkout.sessions.list({
+      const subscriptions = await stripe.subscriptions.list({
         customer: customer.id,
-        payment_status: "paid",
+        status: "active",
         limit: 10,
+        expand: ["data.items.data.price.product"],
       });
 
-      const completedSessions = sessions.data.filter((s) => s.status === "complete").sort((a, b) => b.created - a.created);
+      if (subscriptions.data.length > 0) {
+        const latestSub = subscriptions.data.sort((a, b) => b.created - a.created)[0];
+        const product = latestSub.items.data[0]?.price?.product;
+        const productName = typeof product === "string" ? "" : product?.name;
+        targetPlan = planFromProductName(productName);
+        expiresAt = new Date(latestSub.current_period_end * 1000).toISOString();
+      }
+
+      if (!targetPlan) {
+        const sessions = await stripe.checkout.sessions.list({
+          customer: customer.id,
+          payment_status: "paid",
+          limit: 20,
+        });
+
+        const completedSessions = sessions.data
+          .filter((s) => s.status === "complete")
+          .sort((a, b) => b.created - a.created);
+
+        for (const session of completedSessions) {
+          const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+            expand: ["line_items.data.price.product"],
+          });
+
+          const lineItem = fullSession.line_items?.data?.[0];
+          const product = lineItem?.price?.product;
+          const productName = typeof product === "string" ? "" : product?.name;
+          const mapped = planFromProductName(productName);
+
+          if (mapped) {
+            targetPlan = mapped;
+            expiresAt = oneTimeExpiryFromProductName(productName);
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: guest checkout without Stripe customer attached
+    if (!targetPlan) {
+      const sessions = await stripe.checkout.sessions.list({ payment_status: "paid", limit: 100 });
+      const completedSessions = sessions.data
+        .filter((s) => s.status === "complete")
+        .sort((a, b) => b.created - a.created);
 
       for (const session of completedSessions) {
+        const sessionEmail = session.customer_details?.email?.trim().toLowerCase();
+        if (!sessionEmail || sessionEmail !== normalizedEmail) continue;
+
         const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
           expand: ["line_items.data.price.product"],
         });
