@@ -191,7 +191,21 @@ const AdminPanel = () => {
       granted_by: null, updated_at: new Date().toISOString(),
     }).eq('id', subId);
     if (error) toast.error(`Failed to revoke: ${error.message}`);
-    else { toast.success('Revoked'); loadData(); }
+  else { toast.success('Revoked'); loadData(); }
+  };
+
+  const resetToDefault = async (userId: string, userEmail: string) => {
+    const sub = subscriptions.find(s => s.user_id === userId);
+    if (!sub) {
+      toast.error('No subscription found for this user');
+      return;
+    }
+    const { error } = await supabase.from('user_subscriptions').update({
+      plan: 'free', daily_limit: 15, is_free_grant: false, discount_percent: 0,
+      granted_by: null, expires_at: null, updated_at: new Date().toISOString(),
+    }).eq('id', sub.id);
+    if (error) toast.error(`Failed to reset: ${error.message}`);
+    else { toast.success(`Reset ${userEmail} to free plan`); loadData(); }
   };
 
   const savePaymentLink = async (plan: string) => {
