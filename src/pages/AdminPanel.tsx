@@ -339,11 +339,13 @@ const AdminPanel = () => {
                       <th className="text-left p-3 text-muted-foreground font-medium">Plan</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Daily Limit</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Joined</th>
+                      <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map(u => {
                       const sub = subscriptions.find(s => s.user_id === u.id);
+                      const isNonFree = sub && sub.plan !== 'free';
                       return (
                         <tr key={u.id} className="border-b border-border hover:bg-muted/50">
                           <td className="p-3 text-foreground">{u.display_name || '—'}</td>
@@ -355,6 +357,11 @@ const AdminPanel = () => {
                           </td>
                           <td className="p-3 text-foreground">{sub?.daily_limit || 15}</td>
                           <td className="p-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td className="p-3">
+                            {isNonFree && (
+                              <button onClick={() => resetToDefault(u.id, u.email)} className="text-xs text-orange-400 hover:underline">Reset to Free</button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
