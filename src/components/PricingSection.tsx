@@ -96,7 +96,12 @@ const PricingSection = () => {
     };
 
     const syncStripeSubscription = async () => {
-      await supabase.functions.invoke('sync-subscription');
+      const { data, error } = await supabase.functions.invoke('sync-subscription');
+      if (error) {
+        console.error('Sync failed:', error.message);
+      } else if (data?.synced === false) {
+        console.info('Sync not applied:', data?.reason || 'unknown_reason');
+      }
       await fetchSub();
     };
 
