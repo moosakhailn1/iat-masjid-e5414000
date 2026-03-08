@@ -127,7 +127,7 @@ serve(async (req) => {
     if (!targetPlan) {
       const sessions = await stripe.checkout.sessions.list({ limit: 100 });
       const completedSessions = sessions.data
-        .filter((s) => s.status === "complete")
+        .filter((s) => s.status === "complete" && s.payment_status === "paid")
         .sort((a, b) => b.created - a.created);
 
       for (const session of completedSessions) {
