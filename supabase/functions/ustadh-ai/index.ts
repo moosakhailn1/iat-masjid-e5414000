@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -19,15 +20,113 @@ Your role:
 
 You speak with warmth and wisdom. Format responses with markdown for readability.`;
 
+type Plan = "free" | "Seeker AI" | "Student AI" | "Scholar AI" | "Imam AI";
+
+const planPerks: Record<Plan, { uploads: boolean; thinking: boolean; webSearch: boolean }> = {
+  free: { uploads: false, thinking: false, webSearch: false },
+  "Seeker AI": { uploads: true, thinking: false, webSearch: false },
+  "Student AI": { uploads: true, thinking: true, webSearch: true },
+  "Scholar AI": { uploads: true, thinking: true, webSearch: true },
+  "Imam AI": { uploads: true, thinking: true, webSearch: true },
+};
+
+const getSupabaseAdmin = () => {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) throw new Error("Backend env is not configured");
+  return createClient(url, serviceKey);
+};
+
+const getPlanFromDb = async (authHeader: string | null) => {
+  if (!authHeader?.startsWith("Bearer ")) return "free" as Plan;
+
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) return "free" as Plan;
+
+  const admin = getSupabaseAdmin();
+  const { data: userData } = await admin.auth.getUser(token);
+  const userId = userData.user?.id;
+
+  if (!userId) return "free" as Plan;
+
+  const { data } = await admin
+    .from("user_subscriptions")
+    .select("plan")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const plan = (data?.plan || "free") as Plan;
+  return planPerks[plan] ? plan : "free";
+};
+
+const fetchWebContext = async (query: string) => {
+  if (!query?.trim()) return "";
+  try {
+    const response = await fetch(
+      `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&no_redirect=1`
+    );
+    if (!response.ok) return "";
+
+    const data = await response.json();
+    const snippets: string[] = [];
+
+    if (data.AbstractText) snippets.push(`Summary: ${data.AbstractText}`);
+
+    const related = Array.isArray(data.RelatedTopics) ? data.RelatedTopics : [];
+    for (const item of related.slice(0, 4)) {
+      if (item?.Text) snippets.push(`- ${item.Text}`);
+      if (item?.Topics?.[0]?.Text) snippets.push(`- ${item.Topics[0].Text}`);
+    }
+
+    if (!snippets.length) return "";
+    return `Web context for this question (verify before relying):\n${snippets.join("\n")}`;
+  } catch {
+    return "";
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages } = await req.json();
+    const body = await req.json();
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const options = body.options ?? {};
+    const rawAttachments = Array.isArray(body.attachments) ? body.attachments : [];
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const plan = await getPlanFromDb(req.headers.get("authorization"));
+    const perks = planPerks[plan];
+
+    const thinkingEnabled = Boolean(options.thinking) && perks.thinking;
+    const webSearchEnabled = Boolean(options.webSearch) && perks.webSearch;
+    const attachments = perks.uploads
+      ? rawAttachments
+          .filter((a: any) => typeof a?.dataUrl === "string" && a.dataUrl.startsWith("data:image/"))
+          .slice(0, 3)
+      : [];
+
+    const lastUserMessage = [...messages].reverse().find((m: any) => m?.role === "user")?.content ?? "";
+    const webContext = webSearchEnabled ? await fetchWebContext(String(lastUserMessage)) : "";
+
+    const modelMessages = messages.map((m: any, idx: number) => {
+      const isLast = idx === messages.length - 1;
+      if (isLast && m.role === "user" && attachments.length > 0) {
+        return {
+          role: "user",
+          content: [
+            { type: "text", text: String(m.content || "") },
+            ...attachments.map((a: any) => ({ type: "image_url", image_url: { url: a.dataUrl } })),
+          ],
+        };
+      }
+
+      return { role: m.role, content: String(m.content || "") };
+    });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -36,10 +135,19 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: thinkingEnabled ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
+          {
+            role: "system",
+            content: `Current user plan: ${plan}.\nEnabled perks: uploads=${perks.uploads}, thinking=${perks.thinking}, webSearch=${perks.webSearch}.\n${
+              thinkingEnabled
+                ? "Deep thinking mode is ON: reason step-by-step internally and give a concise final answer."
+                : "Deep thinking mode is OFF: keep responses fast and concise."
+            }`,
+          },
+          ...(webContext ? [{ role: "system", content: webContext }] : []),
+          ...modelMessages,
         ],
         stream: true,
       }),
