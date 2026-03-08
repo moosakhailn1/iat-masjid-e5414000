@@ -101,7 +101,7 @@ serve(async (req) => {
         });
 
         const completedSessions = sessions.data
-          .filter((s) => s.status === "complete" && s.payment_status === "paid")
+          .filter((s) => s.status === "complete" && ["paid", "no_payment_required"].includes(s.payment_status || ""))
           .sort((a, b) => b.created - a.created);
 
         for (const session of completedSessions) {
