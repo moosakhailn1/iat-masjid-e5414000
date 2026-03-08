@@ -196,12 +196,24 @@ const UstadhAI = () => {
       {/* Questions remaining */}
       <div className="flex justify-center mb-6">
         <div className="bg-secondary rounded-full px-4 py-2 flex items-center gap-2">
-          <div className="flex gap-0.5">
-            {Array.from({ length: FREE_LIMIT }).map((_, i) => (
-              <div key={i} className={`w-2 h-2 rounded-full ${i < remaining ? 'bg-primary' : 'bg-muted'}`} />
-            ))}
-          </div>
-          <span className="text-muted-foreground text-xs">{remaining} of {FREE_LIMIT} questions remaining today</span>
+          {currentPlan !== 'free' && (
+            <span className="text-primary text-xs font-semibold flex items-center gap-1">
+              <Crown size={12} /> {currentPlan}
+            </span>
+          )}
+          {isUnlimited ? (
+            <span className="text-muted-foreground text-xs">Unlimited questions</span>
+          ) : (
+            <>
+              <div className="flex gap-0.5">
+                {Array.from({ length: Math.min(dailyLimit, 30) }).map((_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full ${i < remaining ? 'bg-primary' : 'bg-muted'}`} />
+                ))}
+                {dailyLimit > 30 && <span className="text-muted-foreground text-xs ml-1">...</span>}
+              </div>
+              <span className="text-muted-foreground text-xs">{remaining} of {dailyLimit} questions remaining today</span>
+            </>
+          )}
         </div>
       </div>
 
