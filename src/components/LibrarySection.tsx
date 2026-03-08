@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { hadiths, duas, khutbahs, categories } from '@/data/library';
+import { hadiths, duas, khutbahs, seerahEvents, categories, seerahCategories } from '@/data/library';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DailyHadith from './DailyHadith';
 import LibraryCard from './LibraryCard';
 
-type LibraryTab = 'hadiths' | 'duas' | 'khutbahs';
+type LibraryTab = 'hadiths' | 'duas' | 'khutbahs' | 'seerah';
 
 const khutbahTypes = ['All', 'Friday Sermon', 'Eid', 'Ramadan', 'General', 'Special Occasion'] as const;
 
@@ -16,6 +16,7 @@ const LibrarySection = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedKhutbahType, setSelectedKhutbahType] = useState<string>('All');
+  const [selectedSeerahCategory, setSelectedSeerahCategory] = useState<string>('All');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -54,21 +55,32 @@ const LibrarySection = () => {
     });
   }, [search, selectedCategory, selectedKhutbahType]);
 
+  const filteredSeerah = useMemo(() => {
+    return seerahEvents.filter(s => {
+      const q = search.toLowerCase();
+      const matchesSearch = !search || s.title.toLowerCase().includes(q) || s.english.toLowerCase().includes(q) || s.pashto.toLowerCase().includes(q) || s.dari.toLowerCase().includes(q);
+      const matchesCat = selectedSeerahCategory === 'All' || s.category === selectedSeerahCategory;
+      return matchesSearch && matchesCat;
+    });
+  }, [search, selectedSeerahCategory]);
+
+  const activeCategories = tab === 'seerah' ? null : categories;
+
   return (
     <div className="space-y-6">
       <DailyHadith />
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        {(['hadiths', 'duas', 'khutbahs'] as const).map(t => (
+      <div className="flex gap-2 flex-wrap">
+        {(['hadiths', 'duas', 'khutbahs', 'seerah'] as const).map(t => (
           <button
             key={t}
-            onClick={() => { setTab(t); setSearch(''); setSelectedCategory('All'); }}
+            onClick={() => { setTab(t); setSearch(''); setSelectedCategory('All'); setSelectedSeerahCategory('All'); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
               tab === t ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
             }`}
           >
-            {t === 'duas' ? "Du'as" : t === 'khutbahs' ? 'Khutbas' : 'Hadiths'}
+            {t === 'duas' ? "Du'as" : t === 'khutbahs' ? 'Khutbas' : t === 'seerah' ? 'Seerah' : 'Hadiths'}
           </button>
         ))}
       </div>
@@ -84,20 +96,39 @@ const LibrarySection = () => {
         />
       </div>
 
-      {/* Category Filters */}
-      <div className="flex gap-2 flex-wrap">
-        {['All', ...categories].map(cat => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              selectedCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+      {/* Category Filters for hadiths/duas/khutbahs */}
+      {tab !== 'seerah' && (
+        <div className="flex gap-2 flex-wrap">
+          {['All', ...categories].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                selectedCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Seerah category filters */}
+      {tab === 'seerah' && (
+        <div className="flex gap-2 flex-wrap">
+          {['All', ...seerahCategories].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedSeerahCategory(cat)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                selectedSeerahCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Khutbah type filters */}
       {tab === 'khutbahs' && (
@@ -117,7 +148,7 @@ const LibrarySection = () => {
       )}
 
       {/* Cards Grid */}
-      <div className={`grid gap-4 ${tab === 'khutbahs' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+      <div className={`grid gap-4 ${(tab === 'khutbahs' || tab === 'seerah') ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
         {tab === 'hadiths' && filteredHadiths.map(h => (
           <LibraryCard key={h.id} id={h.id} itemType="hadith" arabic={h.arabic} english={h.english} pashto={h.pashto} dari={h.dari} source={h.source} number={h.number} narrator={h.narrator} category={h.category} isFavorited={favIds.has(h.id)} />
         ))}
@@ -127,9 +158,12 @@ const LibrarySection = () => {
         {tab === 'khutbahs' && filteredKhutbahs.map(k => (
           <LibraryCard key={k.id} id={k.id} itemType="khutbah" arabic={k.arabic} english={k.english} pashto={k.pashto} dari={k.dari} source={k.topic} category={k.category} title={k.title} imam={k.imam} date={k.date} type={k.type} fullText={k.fullText} isFavorited={favIds.has(k.id)} />
         ))}
+        {tab === 'seerah' && filteredSeerah.map(s => (
+          <LibraryCard key={s.id} id={s.id} itemType="seerah" arabic={s.arabic} english={s.english} pashto={s.pashto} dari={s.dari} source={s.source} category={s.category} title={s.title} date={s.year} fullText={s.details} isFavorited={favIds.has(s.id)} />
+        ))}
       </div>
 
-      {((tab === 'hadiths' && !filteredHadiths.length) || (tab === 'duas' && !filteredDuas.length) || (tab === 'khutbahs' && !filteredKhutbahs.length)) && (
+      {((tab === 'hadiths' && !filteredHadiths.length) || (tab === 'duas' && !filteredDuas.length) || (tab === 'khutbahs' && !filteredKhutbahs.length) || (tab === 'seerah' && !filteredSeerah.length)) && (
         <p className="text-center text-muted-foreground py-12">No results found.</p>
       )}
     </div>

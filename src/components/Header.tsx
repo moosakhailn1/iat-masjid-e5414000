@@ -27,7 +27,7 @@ const Header = ({ activeTab, onTabChange }: HeaderProps) => {
           <span className="text-foreground">Islamic Library</span>
         </h1>
         <p className="text-center text-muted-foreground text-sm mb-6">
-          Hadiths · Du'as · Khutbas · Islamic Guidance
+          Hadiths · Du'as · Khutbas · Seerah · Islamic Guidance
         </p>
 
         <nav className="flex justify-center gap-2 flex-wrap">

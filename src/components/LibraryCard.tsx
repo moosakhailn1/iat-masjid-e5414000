@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface LibraryCardProps {
   id?: string;
-  itemType?: 'hadith' | 'dua' | 'khutbah';
+  itemType?: 'hadith' | 'dua' | 'khutbah' | 'seerah';
   arabic: string;
   english: string;
   pashto?: string;
@@ -59,23 +59,194 @@ const LibraryCard = ({
   const handlePrint = () => {
     const w = window.open('', '_blank');
     if (w) {
+      const isSeerah = itemType === 'seerah';
+      const isKhutbah = itemType === 'khutbah';
       w.document.write(`
-        <html><head><title>Print</title>
-        <style>body{font-family:serif;padding:40px;direction:ltr}
-        .arabic{font-size:24px;text-align:right;direction:rtl;margin-bottom:20px}
-        .english{font-style:italic;margin-bottom:10px}
-        .translation{margin-bottom:10px;color:#444}
-        .label{font-weight:bold;color:#666;font-size:14px}
-        .source{color:#666}</style></head>
-        <body><div class="arabic">${arabic}</div>
-        <div class="english">${english}</div>
-        ${pashto ? `<div class="translation"><span class="label">پښتو:</span> ${pashto}</div>` : ''}
-        ${dari ? `<div class="translation"><span class="label">دری:</span> ${dari}</div>` : ''}
-        <div class="source">— ${source}${number ? ` #${number}` : ''}</div>
-        ${fullText ? `<hr><p>${fullText}</p>` : ''}
-        </body></html>`);
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <title>${title || 'Print'} — IAT Islamic Library</title>
+          <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Inter', sans-serif;
+              color: #1a1a2e;
+              padding: 48px 56px;
+              max-width: 800px;
+              margin: 0 auto;
+              line-height: 1.7;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #c8a45a;
+              padding-bottom: 20px;
+              margin-bottom: 32px;
+            }
+            .header .bismillah {
+              font-family: 'Amiri', serif;
+              font-size: 22px;
+              color: #c8a45a;
+              margin-bottom: 4px;
+            }
+            .header .org {
+              font-size: 10px;
+              text-transform: uppercase;
+              letter-spacing: 3px;
+              color: #888;
+              margin-bottom: 8px;
+            }
+            .header h1 {
+              font-size: 20px;
+              font-weight: 600;
+              color: #1a1a2e;
+            }
+            .header .meta {
+              font-size: 12px;
+              color: #666;
+              margin-top: 6px;
+            }
+            .arabic-block {
+              background: #faf8f3;
+              border: 1px solid #e8e0d0;
+              border-radius: 12px;
+              padding: 24px 28px;
+              margin-bottom: 24px;
+              text-align: right;
+              direction: rtl;
+            }
+            .arabic-text {
+              font-family: 'Amiri', serif;
+              font-size: 26px;
+              line-height: 2;
+              color: #1a1a2e;
+            }
+            .english-text {
+              font-size: 15px;
+              line-height: 1.8;
+              color: #2a2a3e;
+              margin-bottom: 20px;
+              font-style: italic;
+            }
+            .translation-section {
+              border-left: 3px solid #c8a45a;
+              padding-left: 16px;
+              margin-bottom: 20px;
+            }
+            .translation-label {
+              font-size: 11px;
+              font-weight: 600;
+              color: #c8a45a;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-bottom: 4px;
+            }
+            .translation-text {
+              font-size: 14px;
+              line-height: 1.7;
+              color: #444;
+              direction: rtl;
+              text-align: right;
+              margin-bottom: 12px;
+            }
+            .source-block {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 12px 16px;
+              background: #f5f3ef;
+              border-radius: 8px;
+              margin-bottom: 24px;
+            }
+            .source-text {
+              font-size: 13px;
+              color: #c8a45a;
+              font-weight: 600;
+            }
+            .category-badge {
+              font-size: 11px;
+              background: #e8e0d0;
+              color: #666;
+              padding: 4px 12px;
+              border-radius: 20px;
+            }
+            .narrator-text {
+              font-size: 12px;
+              color: #888;
+            }
+            .full-text {
+              font-size: 14px;
+              line-height: 1.9;
+              color: #333;
+              white-space: pre-line;
+              margin-top: 16px;
+              padding-top: 16px;
+              border-top: 1px solid #e0dcd5;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e0dcd5;
+              font-size: 11px;
+              color: #aaa;
+            }
+            @media print {
+              body { padding: 32px 40px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
+            <div class="org">Islamic Association of Texas</div>
+            ${title ? `<h1>${title}</h1>` : ''}
+            <div class="meta">
+              ${imam ? `🕌 ${imam}` : ''}
+              ${date ? ` · 📅 ${date}` : ''}
+              ${type ? ` · ${type}` : ''}
+              ${narrator ? `Narrated by: ${narrator}` : ''}
+            </div>
+          </div>
+
+          <div class="arabic-block">
+            <div class="arabic-text">${arabic}</div>
+          </div>
+
+          <div class="english-text">${english}</div>
+
+          ${pashto ? `
+          <div class="translation-section">
+            <div class="translation-label">پښتو (Pashto)</div>
+            <div class="translation-text">${pashto}</div>
+          </div>` : ''}
+
+          ${dari ? `
+          <div class="translation-section">
+            <div class="translation-label">دری (Dari)</div>
+            <div class="translation-text">${dari}</div>
+          </div>` : ''}
+
+          <div class="source-block">
+            <div>
+              <div class="source-text">📖 ${source}${number ? ` #${number}` : ''}</div>
+              ${narrator ? `<div class="narrator-text">Narrated by: ${narrator}</div>` : ''}
+            </div>
+            <span class="category-badge">${category}</span>
+          </div>
+
+          ${fullText ? `<div class="full-text">${fullText}</div>` : ''}
+
+          <div class="footer">
+            IAT Islamic Library — Printed from the IAT Digital Collection
+          </div>
+        </body>
+        </html>
+      `);
       w.document.close();
-      w.print();
+      setTimeout(() => w.print(), 300);
     }
   };
 
@@ -116,6 +287,11 @@ const LibraryCard = ({
           {imam && (
             <p className="text-muted-foreground text-sm mt-1">
               🕌 {imam} {date && `· 📅 ${date}`}
+            </p>
+          )}
+          {!imam && date && (
+            <p className="text-muted-foreground text-sm mt-1">
+              📅 {date}
             </p>
           )}
           {occasion && (
@@ -178,7 +354,7 @@ const LibraryCard = ({
             className="flex items-center gap-1 text-primary text-sm mb-3 hover:underline"
           >
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {expanded ? 'Show less' : 'Read full khutba'}
+            {expanded ? 'Show less' : itemType === 'seerah' ? 'Read full story' : 'Read full khutba'}
           </button>
         </>
       )}
