@@ -94,7 +94,14 @@ const PricingSection = () => {
       setCurrentPlan(data?.plan || 'free');
       setSubLoading(false);
     };
-    fetchSub();
+
+    const syncStripeSubscription = async () => {
+      await supabase.functions.invoke('sync-subscription');
+      await fetchSub();
+    };
+
+    syncStripeSubscription();
+    const interval = setInterval(syncStripeSubscription, 30000);
 
     // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
@@ -109,7 +116,10 @@ const PricingSection = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const loadPaymentLinks = async () => {
