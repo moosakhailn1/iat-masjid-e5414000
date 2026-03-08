@@ -74,12 +74,43 @@ const PricingSection = () => {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const [currentPlan, setCurrentPlan] = useState<string>('free');
+  const [subLoading, setSubLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
     loadPaymentLinks();
     loadDiscounts();
   }, []);
+
+  useEffect(() => {
+    if (!user) { setCurrentPlan('free'); setSubLoading(false); return; }
+    const fetchSub = async () => {
+      const { data } = await supabase
+        .from('user_subscriptions')
+        .select('plan')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setCurrentPlan(data?.plan || 'free');
+      setSubLoading(false);
+    };
+    fetchSub();
+
+    // Realtime subscription for instant updates (e.g. admin grants)
+    const channel = supabase
+      .channel(`user_sub:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new?.plan) setCurrentPlan(payload.new.plan);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const loadPaymentLinks = async () => {
     const { data } = await supabase.from('payment_links').select('*');
@@ -148,6 +179,19 @@ const PricingSection = () => {
           </span>
         </div>
       ))}
+
+      {/* Current plan badge */}
+      {user && !subLoading && (
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-5 py-2.5">
+            <Crown size={16} className="text-primary" />
+            <span className="text-sm text-muted-foreground">Your current plan:</span>
+            <span className="text-sm font-bold text-foreground capitalize">
+              {currentPlan === 'free' ? 'Free' : currentPlan}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-foreground mb-2">Upgrade Your Islamic Knowledge</h2>
@@ -240,16 +284,25 @@ const PricingSection = () => {
                 ))}
               </ul>
 
-              <button
-                onClick={() => handleSubscribe(plan)}
-                className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  plan.popular
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                }`}
-              >
-                Get Started
-              </button>
+              {currentPlan === plan.name ? (
+                <button
+                  disabled
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-primary/20 text-primary cursor-default"
+                >
+                  ✓ Current Plan
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSubscribe(plan)}
+                  className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    plan.popular
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-secondary text-secondary-foreground hover:bg-muted'
+                  }`}
+                >
+                  {currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
+                </button>
+              )}
             </div>
           );
         })}
