@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Crown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -15,12 +17,15 @@ const suggestedQuestions = [
   'What is the significance of Ramadan?',
 ];
 
-const FREE_LIMIT = 15;
+const DEFAULT_LIMIT = 15;
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const UstadhAI = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [dailyLimit, setDailyLimit] = useState(DEFAULT_LIMIT);
+  const [currentPlan, setCurrentPlan] = useState('free');
   const [questionsUsed, setQuestionsUsed] = useState(() => {
     const stored = localStorage.getItem('ustadh_ai_usage');
     if (stored) {
@@ -32,7 +37,43 @@ const UstadhAI = () => {
   const [isLoading, setIsLoading] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const remaining = FREE_LIMIT - questionsUsed;
+  // Fetch user's subscription for daily limit
+  useEffect(() => {
+    if (!user) { setDailyLimit(DEFAULT_LIMIT); setCurrentPlan('free'); return; }
+    const fetchSub = async () => {
+      const { data } = await supabase
+        .from('user_subscriptions')
+        .select('plan, daily_limit')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (data) {
+        setDailyLimit(data.daily_limit);
+        setCurrentPlan(data.plan);
+      }
+    };
+    fetchSub();
+
+    // Listen for realtime changes (admin grants)
+    const channel = supabase
+      .channel(`ustadh_sub:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new) {
+          setDailyLimit(payload.new.daily_limit);
+          setCurrentPlan(payload.new.plan);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  const isUnlimited = currentPlan === 'Imam AI';
+  const remaining = isUnlimited ? Infinity : dailyLimit - questionsUsed;
 
   useEffect(() => {
     localStorage.setItem('ustadh_ai_usage', JSON.stringify({ count: questionsUsed, date: new Date().toDateString() }));
@@ -45,7 +86,7 @@ const UstadhAI = () => {
   }, [messages]);
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || remaining <= 0 || isLoading) return;
+    if (!text.trim() || (!isUnlimited && remaining <= 0) || isLoading) return;
 
     const userMsg: Message = { role: 'user', content: text };
     const newMessages = [...messages, userMsg];
@@ -155,12 +196,24 @@ const UstadhAI = () => {
       {/* Questions remaining */}
       <div className="flex justify-center mb-6">
         <div className="bg-secondary rounded-full px-4 py-2 flex items-center gap-2">
-          <div className="flex gap-0.5">
-            {Array.from({ length: FREE_LIMIT }).map((_, i) => (
-              <div key={i} className={`w-2 h-2 rounded-full ${i < remaining ? 'bg-primary' : 'bg-muted'}`} />
-            ))}
-          </div>
-          <span className="text-muted-foreground text-xs">{remaining} of {FREE_LIMIT} questions remaining today</span>
+          {currentPlan !== 'free' && (
+            <span className="text-primary text-xs font-semibold flex items-center gap-1">
+              <Crown size={12} /> {currentPlan}
+            </span>
+          )}
+          {isUnlimited ? (
+            <span className="text-muted-foreground text-xs">Unlimited questions</span>
+          ) : (
+            <>
+              <div className="flex gap-0.5">
+                {Array.from({ length: Math.min(dailyLimit, 30) }).map((_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full ${i < remaining ? 'bg-primary' : 'bg-muted'}`} />
+                ))}
+                {dailyLimit > 30 && <span className="text-muted-foreground text-xs ml-1">...</span>}
+              </div>
+              <span className="text-muted-foreground text-xs">{remaining} of {dailyLimit} questions remaining today</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -233,13 +286,13 @@ const UstadhAI = () => {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-          placeholder={remaining > 0 ? 'Ask about Islam...' : 'Daily limit reached. Upgrade for more.'}
-          disabled={remaining <= 0}
+          placeholder={isUnlimited || remaining > 0 ? 'Ask about Islam...' : 'Daily limit reached. Upgrade for more.'}
+          disabled={!isUnlimited && remaining <= 0}
           className="w-full bg-card text-foreground placeholder:text-muted-foreground rounded-xl pl-4 pr-12 py-3.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
         />
         <button
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || remaining <= 0 || isLoading}
+          disabled={!input.trim() || (!isUnlimited && remaining <= 0) || isLoading}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-primary disabled:text-muted-foreground transition-colors"
         >
           <Send size={18} />
