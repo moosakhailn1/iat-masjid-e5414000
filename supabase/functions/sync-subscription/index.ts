@@ -97,7 +97,6 @@ serve(async (req) => {
       if (!targetPlan) {
         const sessions = await stripe.checkout.sessions.list({
           customer: customer.id,
-          payment_status: "paid",
           limit: 20,
         });
 
