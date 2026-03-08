@@ -284,16 +284,25 @@ const PricingSection = () => {
                 ))}
               </ul>
 
-              <button
-                onClick={() => handleSubscribe(plan)}
-                className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  plan.popular
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                }`}
-              >
-                Get Started
-              </button>
+              {currentPlan === plan.name ? (
+                <button
+                  disabled
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-primary/20 text-primary cursor-default"
+                >
+                  ✓ Current Plan
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSubscribe(plan)}
+                  className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    plan.popular
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-secondary text-secondary-foreground hover:bg-muted'
+                  }`}
+                >
+                  {currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
+                </button>
+              )}
             </div>
           );
         })}
