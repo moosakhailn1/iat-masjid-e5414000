@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { Copy, Printer, Heart, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LibraryCardProps {
+  id?: string;
+  itemType?: 'hadith' | 'dua' | 'khutbah';
   arabic: string;
   english: string;
   pashto?: string;
@@ -17,9 +21,13 @@ interface LibraryCardProps {
   date?: string;
   type?: string;
   fullText?: string;
+  isFavorited?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 const LibraryCard = ({
+  id,
+  itemType,
   arabic,
   english,
   pashto,
@@ -34,8 +42,11 @@ const LibraryCard = ({
   date,
   type,
   fullText,
+  isFavorited: initialFavorited,
+  onToggleFavorite,
 }: LibraryCardProps) => {
-  const [favorited, setFavorited] = useState(false);
+  const { user } = useAuth();
+  const [favorited, setFavorited] = useState(initialFavorited ?? false);
   const [expanded, setExpanded] = useState(false);
   const [showTranslations, setShowTranslations] = useState(false);
 
@@ -65,6 +76,28 @@ const LibraryCard = ({
         </body></html>`);
       w.document.close();
       w.print();
+    }
+  };
+
+  const handleFavorite = async () => {
+    if (onToggleFavorite) {
+      onToggleFavorite();
+      return;
+    }
+    if (!user) {
+      toast.error('Sign in to save favorites');
+      return;
+    }
+    if (!id || !itemType) return;
+
+    if (favorited) {
+      await supabase.from('favorites').delete().eq('user_id', user.id).eq('item_id', id).eq('item_type', itemType);
+      setFavorited(false);
+      toast.success('Removed from favorites');
+    } else {
+      await supabase.from('favorites').insert({ user_id: user.id, item_id: id, item_type: itemType });
+      setFavorited(true);
+      toast.success('Added to favorites');
     }
   };
 
@@ -105,7 +138,6 @@ const LibraryCard = ({
         {english}
       </p>
 
-      {/* Pashto/Dari toggle */}
       {(pashto || dari) && (
         <>
           <button
@@ -173,7 +205,7 @@ const LibraryCard = ({
           <Printer size={13} /> Print
         </button>
         <button
-          onClick={() => { setFavorited(!favorited); toast.success(favorited ? 'Removed from favorites' : 'Added to favorites'); }}
+          onClick={handleFavorite}
           className={`flex items-center gap-1.5 text-xs transition-colors ${favorited ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'}`}
         >
           <Heart size={13} fill={favorited ? 'currentColor' : 'none'} />

@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { hadiths, duas, khutbahs, categories } from '@/data/library';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import DailyHadith from './DailyHadith';
 import LibraryCard from './LibraryCard';
 
@@ -9,10 +11,20 @@ type LibraryTab = 'hadiths' | 'duas' | 'khutbahs';
 const khutbahTypes = ['All', 'Friday Sermon', 'Eid', 'Ramadan', 'General', 'Special Occasion'] as const;
 
 const LibrarySection = () => {
+  const { user } = useAuth();
   const [tab, setTab] = useState<LibraryTab>('hadiths');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedKhutbahType, setSelectedKhutbahType] = useState<string>('All');
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (user) {
+      supabase.from('favorites').select('item_id').eq('user_id', user.id).then(({ data }) => {
+        setFavIds(new Set((data || []).map(f => f.item_id)));
+      });
+    }
+  }, [user]);
 
   const filteredHadiths = useMemo(() => {
     return hadiths.filter(h => {
@@ -107,13 +119,13 @@ const LibrarySection = () => {
       {/* Cards Grid */}
       <div className={`grid gap-4 ${tab === 'khutbahs' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
         {tab === 'hadiths' && filteredHadiths.map(h => (
-          <LibraryCard key={h.id} arabic={h.arabic} english={h.english} pashto={h.pashto} dari={h.dari} source={h.source} number={h.number} narrator={h.narrator} category={h.category} />
+          <LibraryCard key={h.id} id={h.id} itemType="hadith" arabic={h.arabic} english={h.english} pashto={h.pashto} dari={h.dari} source={h.source} number={h.number} narrator={h.narrator} category={h.category} isFavorited={favIds.has(h.id)} />
         ))}
         {tab === 'duas' && filteredDuas.map(d => (
-          <LibraryCard key={d.id} arabic={d.arabic} english={d.english} pashto={d.pashto} dari={d.dari} source={d.source} category={d.category} occasion={d.occasion} />
+          <LibraryCard key={d.id} id={d.id} itemType="dua" arabic={d.arabic} english={d.english} pashto={d.pashto} dari={d.dari} source={d.source} category={d.category} occasion={d.occasion} isFavorited={favIds.has(d.id)} />
         ))}
         {tab === 'khutbahs' && filteredKhutbahs.map(k => (
-          <LibraryCard key={k.id} arabic={k.arabic} english={k.english} pashto={k.pashto} dari={k.dari} source={k.topic} category={k.category} title={k.title} imam={k.imam} date={k.date} type={k.type} fullText={k.fullText} />
+          <LibraryCard key={k.id} id={k.id} itemType="khutbah" arabic={k.arabic} english={k.english} pashto={k.pashto} dari={k.dari} source={k.topic} category={k.category} title={k.title} imam={k.imam} date={k.date} type={k.type} fullText={k.fullText} isFavorited={favIds.has(k.id)} />
         ))}
       </div>
 
