@@ -79,10 +79,12 @@ const PricingSection = () => {
   const [currentPlan, setCurrentPlan] = useState<string>('free');
   const [subLoading, setSubLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [priceMap, setPriceMap] = useState<Record<string, { monthly: string; yearly: string }>>({});
   const { user } = useAuth();
 
   useEffect(() => {
     loadDiscounts();
+    loadPriceMap();
   }, []);
 
   useEffect(() => {
