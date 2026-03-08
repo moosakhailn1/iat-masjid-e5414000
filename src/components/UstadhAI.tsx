@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Crown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -15,12 +17,15 @@ const suggestedQuestions = [
   'What is the significance of Ramadan?',
 ];
 
-const FREE_LIMIT = 15;
+const DEFAULT_LIMIT = 15;
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const UstadhAI = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [dailyLimit, setDailyLimit] = useState(DEFAULT_LIMIT);
+  const [currentPlan, setCurrentPlan] = useState('free');
   const [questionsUsed, setQuestionsUsed] = useState(() => {
     const stored = localStorage.getItem('ustadh_ai_usage');
     if (stored) {
@@ -32,7 +37,43 @@ const UstadhAI = () => {
   const [isLoading, setIsLoading] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const remaining = FREE_LIMIT - questionsUsed;
+  // Fetch user's subscription for daily limit
+  useEffect(() => {
+    if (!user) { setDailyLimit(DEFAULT_LIMIT); setCurrentPlan('free'); return; }
+    const fetchSub = async () => {
+      const { data } = await supabase
+        .from('user_subscriptions')
+        .select('plan, daily_limit')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (data) {
+        setDailyLimit(data.daily_limit);
+        setCurrentPlan(data.plan);
+      }
+    };
+    fetchSub();
+
+    // Listen for realtime changes (admin grants)
+    const channel = supabase
+      .channel(`ustadh_sub:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new) {
+          setDailyLimit(payload.new.daily_limit);
+          setCurrentPlan(payload.new.plan);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  const isUnlimited = currentPlan === 'Imam AI';
+  const remaining = isUnlimited ? Infinity : dailyLimit - questionsUsed;
 
   useEffect(() => {
     localStorage.setItem('ustadh_ai_usage', JSON.stringify({ count: questionsUsed, date: new Date().toDateString() }));
