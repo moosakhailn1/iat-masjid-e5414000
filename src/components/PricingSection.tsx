@@ -94,7 +94,14 @@ const PricingSection = () => {
       setCurrentPlan(data?.plan || 'free');
       setSubLoading(false);
     };
-    fetchSub();
+
+    const syncStripeSubscription = async () => {
+      await supabase.functions.invoke('sync-subscription');
+      await fetchSub();
+    };
+
+    syncStripeSubscription();
+    const interval = setInterval(syncStripeSubscription, 30000);
 
     // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
@@ -109,7 +116,10 @@ const PricingSection = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const loadPaymentLinks = async () => {
@@ -182,13 +192,32 @@ const PricingSection = () => {
 
       {/* Current plan badge */}
       {user && !subLoading && (
-        <div className="mb-6 text-center">
+        <div className="mb-6 text-center space-y-3">
           <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-5 py-2.5">
             <Crown size={16} className="text-primary" />
             <span className="text-sm text-muted-foreground">Your current plan:</span>
             <span className="text-sm font-bold text-foreground capitalize">
               {currentPlan === 'free' ? 'Free' : currentPlan}
             </span>
+          </div>
+          <div>
+            <button
+              onClick={async () => {
+                setSubLoading(true);
+                await supabase.functions.invoke('sync-subscription');
+                const { data } = await supabase
+                  .from('user_subscriptions')
+                  .select('plan')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
+                setCurrentPlan(data?.plan || 'free');
+                setSubLoading(false);
+                toast.success('Subscription synced');
+              }}
+              className="text-xs bg-secondary text-secondary-foreground border border-border rounded-full px-3 py-1 hover:bg-muted"
+            >
+              I already paid — Refresh perks
+            </button>
           </div>
         </div>
       )}
