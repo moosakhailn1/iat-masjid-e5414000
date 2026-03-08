@@ -125,7 +125,7 @@ serve(async (req) => {
 
     // Fallback: guest checkout without Stripe customer attached
     if (!targetPlan) {
-      const sessions = await stripe.checkout.sessions.list({ payment_status: "paid", limit: 100 });
+      const sessions = await stripe.checkout.sessions.list({ limit: 100 });
       const completedSessions = sessions.data
         .filter((s) => s.status === "complete")
         .sort((a, b) => b.created - a.created);
