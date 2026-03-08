@@ -149,20 +149,20 @@ const AdminPanel = () => {
     if (!link) return;
     
     const existing = paymentLinks.find(l => l.plan === plan);
+    const payload: any = {
+      monthly_link: link.monthly || null,
+      yearly_link: link.yearly || null,
+      monthly_price_id: link.monthlyPriceId || null,
+      yearly_price_id: link.yearlyPriceId || null,
+      updated_at: new Date().toISOString(),
+      updated_by: user!.id,
+    };
     if (existing) {
-      await supabase.from('payment_links').update({
-        monthly_link: link.monthly || null,
-        yearly_link: link.yearly || null,
-        updated_at: new Date().toISOString(),
-        updated_by: user!.id,
-      }).eq('id', existing.id);
+      await supabase.from('payment_links').update(payload).eq('id', existing.id);
     } else {
-      await supabase.from('payment_links').insert({
-        plan, monthly_link: link.monthly || null, yearly_link: link.yearly || null,
-        updated_by: user!.id,
-      });
+      await supabase.from('payment_links').insert({ plan, ...payload });
     }
-    toast.success(`Payment links saved for ${plan}`);
+    toast.success(`Settings saved for ${plan}`);
     loadData();
   };
 
