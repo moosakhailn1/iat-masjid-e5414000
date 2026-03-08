@@ -88,14 +88,7 @@ const UstadhAI = () => {
       }
     };
 
-    const syncStripeSubscription = async () => {
-      await supabase.functions.invoke('sync-subscription');
-      await fetchSub();
-    };
-
-    syncStripeSubscription();
-
-    const interval = setInterval(syncStripeSubscription, 30000);
+    fetchSub();
 
     const channel = supabase
       .channel(`ustadh_sub:${user.id}`)
@@ -117,7 +110,6 @@ const UstadhAI = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [user]);

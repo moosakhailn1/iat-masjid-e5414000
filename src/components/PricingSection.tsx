@@ -95,18 +95,7 @@ const PricingSection = () => {
       setSubLoading(false);
     };
 
-    const syncStripeSubscription = async () => {
-      const { data, error } = await supabase.functions.invoke('sync-subscription');
-      if (error) {
-        console.error('Sync failed:', error.message);
-      } else if (data?.synced === false) {
-        console.info('Sync not applied:', data?.reason || 'unknown_reason');
-      }
-      await fetchSub();
-    };
-
-    syncStripeSubscription();
-    const interval = setInterval(syncStripeSubscription, 30000);
+    fetchSub();
 
     // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
@@ -122,7 +111,6 @@ const PricingSection = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [user]);
@@ -197,39 +185,13 @@ const PricingSection = () => {
 
       {/* Current plan badge */}
       {user && !subLoading && (
-        <div className="mb-6 text-center space-y-3">
+        <div className="mb-6 text-center">
           <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-5 py-2.5">
             <Crown size={16} className="text-primary" />
             <span className="text-sm text-muted-foreground">Your current plan:</span>
             <span className="text-sm font-bold text-foreground capitalize">
               {currentPlan === 'free' ? 'Free' : currentPlan}
             </span>
-          </div>
-          <div>
-            <button
-              onClick={async () => {
-                setSubLoading(true);
-                const { data, error } = await supabase.functions.invoke('sync-subscription');
-                const { data: subData } = await supabase
-                  .from('user_subscriptions')
-                  .select('plan')
-                  .eq('user_id', user.id)
-                  .maybeSingle();
-                setCurrentPlan(subData?.plan || 'free');
-                setSubLoading(false);
-
-                if (error) {
-                  toast.error('Could not sync subscription right now');
-                } else if (data?.synced) {
-                  toast.success('Subscription synced');
-                } else {
-                  toast.error('No paid checkout found for this account email yet');
-                }
-              }}
-              className="text-xs bg-secondary text-secondary-foreground border border-border rounded-full px-3 py-1 hover:bg-muted"
-            >
-              I already paid — Refresh perks
-            </button>
           </div>
         </div>
       )}
