@@ -128,13 +128,34 @@ const AdminPanel = () => {
   };
 
   const grantFreePlan = async () => {
-    const targetUser = users.find(u => u.email === grantEmail);
+    const normalizedEmail = grantEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      toast.error('Enter user email');
+      return;
+    }
+
+    const { data: profileMatch, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (profileError) {
+      toast.error(`Failed to find user: ${profileError.message}`);
+      return;
+    }
+
+    const targetUser = profileMatch ?? users.find(u => (u.email || '').trim().toLowerCase() === normalizedEmail);
     if (!targetUser) { toast.error('User not found. They must sign up first.'); return; }
 
     setGrantLoading(true);
     try {
-      const { data: existing } = await supabase.from('user_subscriptions').select('id').eq('user_id', targetUser.id).maybeSingle();
-      
+      const { data: existing } = await supabase
+        .from('user_subscriptions')
+        .select('id')
+        .eq('user_id', targetUser.id)
+        .maybeSingle();
+
       let error;
       if (existing) {
         const res = await supabase.from('user_subscriptions').update({
@@ -153,7 +174,7 @@ const AdminPanel = () => {
       if (error) {
         toast.error(`Failed to grant: ${error.message}`);
       } else {
-        toast.success(`Granted ${grantPlan} to ${grantEmail}`);
+        toast.success(`Granted ${grantPlan} to ${targetUser.email || normalizedEmail}`);
         setGrantEmail('');
         await loadData();
       }
