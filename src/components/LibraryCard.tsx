@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 interface LibraryCardProps {
   arabic: string;
   english: string;
+  pashto?: string;
+  dari?: string;
   source: string;
   category: string;
   narrator?: string;
@@ -20,6 +22,8 @@ interface LibraryCardProps {
 const LibraryCard = ({
   arabic,
   english,
+  pashto,
+  dari,
   source,
   category,
   narrator,
@@ -33,9 +37,10 @@ const LibraryCard = ({
 }: LibraryCardProps) => {
   const [favorited, setFavorited] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showTranslations, setShowTranslations] = useState(false);
 
   const handleCopy = () => {
-    const text = `${arabic}\n\n${english}\n\n— ${source}${number ? ` #${number}` : ''}`;
+    const text = `${arabic}\n\n${english}${pashto ? `\n\nPashto: ${pashto}` : ''}${dari ? `\n\nDari: ${dari}` : ''}\n\n— ${source}${number ? ` #${number}` : ''}`;
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
   };
@@ -48,9 +53,13 @@ const LibraryCard = ({
         <style>body{font-family:serif;padding:40px;direction:ltr}
         .arabic{font-size:24px;text-align:right;direction:rtl;margin-bottom:20px}
         .english{font-style:italic;margin-bottom:10px}
+        .translation{margin-bottom:10px;color:#444}
+        .label{font-weight:bold;color:#666;font-size:14px}
         .source{color:#666}</style></head>
         <body><div class="arabic">${arabic}</div>
         <div class="english">${english}</div>
+        ${pashto ? `<div class="translation"><span class="label">پښتو:</span> ${pashto}</div>` : ''}
+        ${dari ? `<div class="translation"><span class="label">دری:</span> ${dari}</div>` : ''}
         <div class="source">— ${source}${number ? ` #${number}` : ''}</div>
         ${fullText ? `<hr><p>${fullText}</p>` : ''}
         </body></html>`);
@@ -95,6 +104,35 @@ const LibraryCard = ({
       <p className="text-foreground text-sm leading-relaxed mb-2">
         {english}
       </p>
+
+      {/* Pashto/Dari toggle */}
+      {(pashto || dari) && (
+        <>
+          <button
+            onClick={() => setShowTranslations(!showTranslations)}
+            className="flex items-center gap-1 text-primary text-xs mb-2 hover:underline"
+          >
+            {showTranslations ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {showTranslations ? 'Hide' : 'Show'} Pashto / Dari
+          </button>
+          {showTranslations && (
+            <div className="space-y-2 mb-3 pl-3 border-l-2 border-primary/30">
+              {pashto && (
+                <div>
+                  <span className="text-primary text-xs font-semibold">پښتو (Pashto):</span>
+                  <p className="text-foreground/80 text-sm leading-relaxed" dir="rtl">{pashto}</p>
+                </div>
+              )}
+              {dari && (
+                <div>
+                  <span className="text-primary text-xs font-semibold">دری (Dari):</span>
+                  <p className="text-foreground/80 text-sm leading-relaxed" dir="rtl">{dari}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {fullText && (
         <>

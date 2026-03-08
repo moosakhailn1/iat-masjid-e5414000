@@ -1,7 +1,9 @@
-import { Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { dailyHadith } from '@/data/library';
 
 const DailyHadith = () => {
+  const [showTranslations, setShowTranslations] = useState(false);
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -25,6 +27,27 @@ const DailyHadith = () => {
       </p>
 
       <p className="text-foreground italic mb-3">{dailyHadith.english}</p>
+
+      {/* Pashto/Dari toggle */}
+      <button
+        onClick={() => setShowTranslations(!showTranslations)}
+        className="flex items-center gap-1 text-primary text-xs mb-3 hover:underline"
+      >
+        {showTranslations ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {showTranslations ? 'Hide' : 'Show'} Pashto / Dari
+      </button>
+      {showTranslations && (
+        <div className="space-y-2 mb-3 pl-3 border-l-2 border-primary/30">
+          <div>
+            <span className="text-primary text-xs font-semibold">پښتو (Pashto):</span>
+            <p className="text-foreground/80 text-sm leading-relaxed" dir="rtl">{dailyHadith.pashto}</p>
+          </div>
+          <div>
+            <span className="text-primary text-xs font-semibold">دری (Dari):</span>
+            <p className="text-foreground/80 text-sm leading-relaxed" dir="rtl">{dailyHadith.dari}</p>
+          </div>
+        </div>
+      )}
 
       <p className="text-primary text-sm font-medium">
         — {dailyHadith.source} #{dailyHadith.number}
