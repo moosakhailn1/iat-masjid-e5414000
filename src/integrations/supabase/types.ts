@@ -80,6 +80,72 @@ export type Database = {
         }
         Relationships: []
       }
+      library_content: {
+        Row: {
+          arabic: string
+          category: string
+          content_subtype: string | null
+          content_type: string
+          created_at: string
+          created_by: string | null
+          dari: string
+          english: string
+          event_date: string | null
+          full_text: string | null
+          hadith_number: number | null
+          id: string
+          imam: string | null
+          narrator: string | null
+          occasion: string | null
+          pashto: string
+          source: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          arabic?: string
+          category?: string
+          content_subtype?: string | null
+          content_type: string
+          created_at?: string
+          created_by?: string | null
+          dari?: string
+          english?: string
+          event_date?: string | null
+          full_text?: string | null
+          hadith_number?: number | null
+          id?: string
+          imam?: string | null
+          narrator?: string | null
+          occasion?: string | null
+          pashto?: string
+          source?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arabic?: string
+          category?: string
+          content_subtype?: string | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          dari?: string
+          english?: string
+          event_date?: string | null
+          full_text?: string | null
+          hadith_number?: number | null
+          id?: string
+          imam?: string | null
+          narrator?: string | null
+          occasion?: string | null
+          pashto?: string
+          source?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_links: {
         Row: {
           id: string
