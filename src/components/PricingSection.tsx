@@ -4,25 +4,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Price IDs from the connected Stripe account (one-time payments)
-const PRICE_MAP: Record<string, { monthly: string; yearly: string }> = {
-  'Seeker AI': {
-    monthly: 'price_1T8ZVKAsE14xpVtlOfBOHu1m',
-    yearly: 'price_1T8ZboAsE14xpVtlpR2K8pmw',
-  },
-  'Student AI': {
-    monthly: 'price_1T8ZmWAsE14xpVtltld9dNLs',
-    yearly: 'price_1T8ZsZAsE14xpVtl98PZrqBY',
-  },
-  'Scholar AI': {
-    monthly: 'price_1T8ZuCAsE14xpVtlSHYm4vZF',
-    yearly: 'price_1T8ZvnAsE14xpVtlbaMPsy6Q',
-  },
-  'Imam AI': {
-    monthly: 'price_1T8a1FAsE14xpVtlNxv25let',
-    yearly: 'price_1T8a2tAsE14xpVtlkz0COiS5',
-  },
-};
+// Price IDs are loaded from the database (payment_links table)
+// Admins can update them in the Admin Panel → Payment Links tab
 
 const plans = [
   {
@@ -96,10 +79,12 @@ const PricingSection = () => {
   const [currentPlan, setCurrentPlan] = useState<string>('free');
   const [subLoading, setSubLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [priceMap, setPriceMap] = useState<Record<string, { monthly: string; yearly: string }>>({});
   const { user } = useAuth();
 
   useEffect(() => {
     loadDiscounts();
+    loadPriceMap();
   }, []);
 
   useEffect(() => {
@@ -162,6 +147,20 @@ const PricingSection = () => {
     setDiscounts(data || []);
   };
 
+  const loadPriceMap = async () => {
+    const { data } = await supabase.from('payment_links').select('*');
+    const map: Record<string, { monthly: string; yearly: string }> = {};
+    (data || []).forEach((row: any) => {
+      if (row.monthly_price_id || row.yearly_price_id) {
+        map[row.plan] = {
+          monthly: row.monthly_price_id || '',
+          yearly: row.yearly_price_id || '',
+        };
+      }
+    });
+    setPriceMap(map);
+  };
+
   const bannerDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'banner');
   const cardDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'card');
 
@@ -196,7 +195,7 @@ const PricingSection = () => {
       return;
     }
 
-    const prices = PRICE_MAP[plan.name];
+    const prices = priceMap[plan.name];
     if (!prices) {
       toast.error('Payment not configured for this plan.');
       return;

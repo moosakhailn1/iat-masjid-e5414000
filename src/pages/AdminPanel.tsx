@@ -30,7 +30,7 @@ const AdminPanel = () => {
   const [grantLimit, setGrantLimit] = useState(50);
 
   // Payment links form
-  const [editingLinks, setEditingLinks] = useState<Record<string, { monthly: string; yearly: string }>>({});
+  const [editingLinks, setEditingLinks] = useState<Record<string, { monthly: string; yearly: string; monthlyPriceId: string; yearlyPriceId: string }>>({});
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -52,12 +52,14 @@ const AdminPanel = () => {
     setPaymentLinks(links);
     
     // Initialize editing state
-    const linksMap: Record<string, { monthly: string; yearly: string }> = {};
+    const linksMap: Record<string, { monthly: string; yearly: string; monthlyPriceId: string; yearlyPriceId: string }> = {};
     PLANS.forEach(plan => {
       const existing = links.find((l: any) => l.plan === plan);
       linksMap[plan] = {
         monthly: existing?.monthly_link || '',
         yearly: existing?.yearly_link || '',
+        monthlyPriceId: (existing as any)?.monthly_price_id || '',
+        yearlyPriceId: (existing as any)?.yearly_price_id || '',
       };
     });
     setEditingLinks(linksMap);
@@ -147,20 +149,20 @@ const AdminPanel = () => {
     if (!link) return;
     
     const existing = paymentLinks.find(l => l.plan === plan);
+    const payload: any = {
+      monthly_link: link.monthly || null,
+      yearly_link: link.yearly || null,
+      monthly_price_id: link.monthlyPriceId || null,
+      yearly_price_id: link.yearlyPriceId || null,
+      updated_at: new Date().toISOString(),
+      updated_by: user!.id,
+    };
     if (existing) {
-      await supabase.from('payment_links').update({
-        monthly_link: link.monthly || null,
-        yearly_link: link.yearly || null,
-        updated_at: new Date().toISOString(),
-        updated_by: user!.id,
-      }).eq('id', existing.id);
+      await supabase.from('payment_links').update(payload).eq('id', existing.id);
     } else {
-      await supabase.from('payment_links').insert({
-        plan, monthly_link: link.monthly || null, yearly_link: link.yearly || null,
-        updated_by: user!.id,
-      });
+      await supabase.from('payment_links').insert({ plan, ...payload });
     }
-    toast.success(`Payment links saved for ${plan}`);
+    toast.success(`Settings saved for ${plan}`);
     loadData();
   };
 
@@ -250,21 +252,47 @@ const AdminPanel = () => {
             {tab === 'payments' && (
               <div className="space-y-4">
                 <p className="text-muted-foreground text-sm">
-                  Add your Stripe Payment Links for each plan. Get them from your Stripe Dashboard → Payment Links.
+                  Configure Stripe Price IDs and optional Payment Links for each plan.
                 </p>
                 {PLANS.map(plan => {
                   const existing = paymentLinks.find(l => l.plan === plan);
-                  const hasLinks = existing?.monthly_link || existing?.yearly_link;
+                  const hasPriceIds = editingLinks[plan]?.monthlyPriceId || editingLinks[plan]?.yearlyPriceId;
                   return (
                     <div key={plan} className="bg-card border border-border rounded-xl p-5">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-foreground font-semibold flex items-center gap-2">
                           <CreditCard size={16} className="text-primary" /> {plan}
                         </h3>
-                        {hasLinks && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Active</span>
+                        {hasPriceIds && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Configured</span>
                         )}
                       </div>
+                      
+                      {/* Stripe Price IDs */}
+                      <p className="text-xs text-muted-foreground mb-2 font-medium">Stripe Price IDs (required for checkout)</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Monthly Price ID</label>
+                          <input
+                            value={editingLinks[plan]?.monthlyPriceId || ''}
+                            onChange={e => setEditingLinks(prev => ({ ...prev, [plan]: { ...prev[plan], monthlyPriceId: e.target.value } }))}
+                            placeholder="price_..."
+                            className={inputClass + ' w-full font-mono text-xs'}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Yearly Price ID</label>
+                          <input
+                            value={editingLinks[plan]?.yearlyPriceId || ''}
+                            onChange={e => setEditingLinks(prev => ({ ...prev, [plan]: { ...prev[plan], yearlyPriceId: e.target.value } }))}
+                            placeholder="price_..."
+                            className={inputClass + ' w-full font-mono text-xs'}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Payment Links (optional) */}
+                      <p className="text-xs text-muted-foreground mb-2 font-medium">Payment Links (optional, for external sharing)</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs text-muted-foreground mb-1 block">Monthly Payment Link</label>
@@ -286,7 +314,7 @@ const AdminPanel = () => {
                         </div>
                       </div>
                       <button onClick={() => savePaymentLink(plan)} className="mt-3 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
-                        Save Links
+                        Save
                       </button>
                     </div>
                   );
