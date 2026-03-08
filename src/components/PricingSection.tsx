@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Crown } from 'lucide-react';
+import { toast } from 'sonner';
 
 const plans = [
   {
@@ -48,7 +49,13 @@ const PricingSection = () => {
     // TODO: Uncomment and use when Stripe links are ready
     // const link = isYearly ? plan.yearlyLink : plan.monthlyLink;
     // if (link) window.open(link, '_blank');
-    alert(`Stripe integration coming soon for ${plan.name}! (${isYearly ? 'yearly' : 'monthly'})`);
+
+    // Confirmation of perks upon subscribing
+    toast.success(
+      `${plan.name} — ${isYearly ? 'Yearly' : 'Monthly'} Plan\n\nYou'll get:\n${plan.features.join('\n')}`,
+      { duration: 6000 }
+    );
+    toast.info('Stripe integration coming soon! Your perks will activate after payment.', { duration: 4000 });
   };
 
   return (

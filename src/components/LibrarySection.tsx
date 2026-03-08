@@ -16,7 +16,8 @@ const LibrarySection = () => {
 
   const filteredHadiths = useMemo(() => {
     return hadiths.filter(h => {
-      const matchesSearch = !search || h.english.toLowerCase().includes(search.toLowerCase()) || h.arabic.includes(search);
+      const q = search.toLowerCase();
+      const matchesSearch = !search || h.english.toLowerCase().includes(q) || h.arabic.includes(search) || h.pashto.toLowerCase().includes(q) || h.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || h.category === selectedCategory;
       return matchesSearch && matchesCat;
     });
@@ -24,7 +25,8 @@ const LibrarySection = () => {
 
   const filteredDuas = useMemo(() => {
     return duas.filter(d => {
-      const matchesSearch = !search || d.english.toLowerCase().includes(search.toLowerCase()) || d.arabic.includes(search);
+      const q = search.toLowerCase();
+      const matchesSearch = !search || d.english.toLowerCase().includes(q) || d.arabic.includes(search) || d.pashto.toLowerCase().includes(q) || d.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || d.category === selectedCategory;
       return matchesSearch && matchesCat;
     });
@@ -32,7 +34,8 @@ const LibrarySection = () => {
 
   const filteredKhutbahs = useMemo(() => {
     return khutbahs.filter(k => {
-      const matchesSearch = !search || k.title.toLowerCase().includes(search.toLowerCase()) || k.english.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchesSearch = !search || k.title.toLowerCase().includes(q) || k.english.toLowerCase().includes(q) || k.pashto.toLowerCase().includes(q) || k.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || k.category === selectedCategory;
       const matchesType = selectedKhutbahType === 'All' || k.type === selectedKhutbahType;
       return matchesSearch && matchesCat && matchesType;
@@ -64,7 +67,7 @@ const LibrarySection = () => {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder={`Search ${tab}...`}
+          placeholder={`Search ${tab} (English, Pashto, Dari, Arabic)...`}
           className="w-full bg-secondary text-foreground placeholder:text-muted-foreground rounded-lg pl-10 pr-4 py-2.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors"
         />
       </div>
@@ -104,13 +107,13 @@ const LibrarySection = () => {
       {/* Cards Grid */}
       <div className={`grid gap-4 ${tab === 'khutbahs' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
         {tab === 'hadiths' && filteredHadiths.map(h => (
-          <LibraryCard key={h.id} arabic={h.arabic} english={h.english} source={h.source} number={h.number} narrator={h.narrator} category={h.category} />
+          <LibraryCard key={h.id} arabic={h.arabic} english={h.english} pashto={h.pashto} dari={h.dari} source={h.source} number={h.number} narrator={h.narrator} category={h.category} />
         ))}
         {tab === 'duas' && filteredDuas.map(d => (
-          <LibraryCard key={d.id} arabic={d.arabic} english={d.english} source={d.source} category={d.category} occasion={d.occasion} />
+          <LibraryCard key={d.id} arabic={d.arabic} english={d.english} pashto={d.pashto} dari={d.dari} source={d.source} category={d.category} occasion={d.occasion} />
         ))}
         {tab === 'khutbahs' && filteredKhutbahs.map(k => (
-          <LibraryCard key={k.id} arabic={k.arabic} english={k.english} source={k.topic} category={k.category} title={k.title} imam={k.imam} date={k.date} type={k.type} fullText={k.fullText} />
+          <LibraryCard key={k.id} arabic={k.arabic} english={k.english} pashto={k.pashto} dari={k.dari} source={k.topic} category={k.category} title={k.title} imam={k.imam} date={k.date} type={k.type} fullText={k.fullText} />
         ))}
       </div>
 
