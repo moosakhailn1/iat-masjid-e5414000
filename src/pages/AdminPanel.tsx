@@ -191,7 +191,21 @@ const AdminPanel = () => {
       granted_by: null, updated_at: new Date().toISOString(),
     }).eq('id', subId);
     if (error) toast.error(`Failed to revoke: ${error.message}`);
-    else { toast.success('Revoked'); loadData(); }
+  else { toast.success('Revoked'); loadData(); }
+  };
+
+  const resetToDefault = async (userId: string, userEmail: string) => {
+    const sub = subscriptions.find(s => s.user_id === userId);
+    if (!sub) {
+      toast.error('No subscription found for this user');
+      return;
+    }
+    const { error } = await supabase.from('user_subscriptions').update({
+      plan: 'free', daily_limit: 15, is_free_grant: false, discount_percent: 0,
+      granted_by: null, expires_at: null, updated_at: new Date().toISOString(),
+    }).eq('id', sub.id);
+    if (error) toast.error(`Failed to reset: ${error.message}`);
+    else { toast.success(`Reset ${userEmail} to free plan`); loadData(); }
   };
 
   const savePaymentLink = async (plan: string) => {
@@ -325,11 +339,13 @@ const AdminPanel = () => {
                       <th className="text-left p-3 text-muted-foreground font-medium">Plan</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Daily Limit</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Joined</th>
+                      <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map(u => {
                       const sub = subscriptions.find(s => s.user_id === u.id);
+                      const isNonFree = sub && sub.plan !== 'free';
                       return (
                         <tr key={u.id} className="border-b border-border hover:bg-muted/50">
                           <td className="p-3 text-foreground">{u.display_name || '—'}</td>
@@ -341,6 +357,11 @@ const AdminPanel = () => {
                           </td>
                           <td className="p-3 text-foreground">{sub?.daily_limit || 15}</td>
                           <td className="p-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td className="p-3">
+                            {isNonFree && (
+                              <button onClick={() => resetToDefault(u.id, u.email)} className="text-xs text-orange-400 hover:underline">Reset to Free</button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
