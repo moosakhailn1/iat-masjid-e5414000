@@ -160,9 +160,20 @@ serve(async (req) => {
 
     const { data: existingSub } = await supabase
       .from("user_subscriptions")
-      .select("id")
+      .select("id, is_free_grant")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    // Do not override admin-granted free memberships.
+    if (existingSub?.is_free_grant) {
+      return new Response(JSON.stringify({
+        synced: false,
+        reason: "skipped_free_grant",
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const payload = {
       plan: targetPlan,
