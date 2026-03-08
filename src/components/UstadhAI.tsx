@@ -286,8 +286,8 @@ const UstadhAI = () => {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-          placeholder={remaining > 0 ? 'Ask about Islam...' : 'Daily limit reached. Upgrade for more.'}
-          disabled={remaining <= 0}
+          placeholder={isUnlimited || remaining > 0 ? 'Ask about Islam...' : 'Daily limit reached. Upgrade for more.'}
+          disabled={!isUnlimited && remaining <= 0}
           className="w-full bg-card text-foreground placeholder:text-muted-foreground rounded-xl pl-4 pr-12 py-3.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
         />
         <button
