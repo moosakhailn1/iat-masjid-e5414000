@@ -195,7 +195,7 @@ const PricingSection = () => {
       return;
     }
 
-    const prices = PRICE_MAP[plan.name];
+    const prices = priceMap[plan.name];
     if (!prices) {
       toast.error('Payment not configured for this plan.');
       return;
