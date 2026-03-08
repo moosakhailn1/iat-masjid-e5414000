@@ -88,7 +88,12 @@ const UstadhAI = () => {
       }
     };
 
-    fetchSub();
+    const syncAndFetch = async () => {
+      await supabase.functions.invoke('sync-subscription');
+      await fetchSub();
+    };
+
+    syncAndFetch();
 
     const channel = supabase
       .channel(`ustadh_sub:${user.id}`)
