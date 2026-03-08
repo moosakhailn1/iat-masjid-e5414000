@@ -201,8 +201,8 @@ const AdminPanel = () => {
       return;
     }
     const { error } = await supabase.from('user_subscriptions').update({
-      plan: 'free', daily_limit: 15, is_free_grant: false, discount_percent: 0,
-      granted_by: null, expires_at: null, updated_at: new Date().toISOString(),
+      plan: 'free', daily_limit: 15, is_free_grant: true, discount_percent: 0,
+      granted_by: user!.id, expires_at: null, updated_at: new Date().toISOString(),
     }).eq('id', sub.id);
     if (error) toast.error(`Failed to reset: ${error.message}`);
     else { toast.success(`Reset ${userEmail} to free plan`); loadData(); }
