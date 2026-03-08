@@ -95,18 +95,7 @@ const PricingSection = () => {
       setSubLoading(false);
     };
 
-    const syncStripeSubscription = async () => {
-      const { data, error } = await supabase.functions.invoke('sync-subscription');
-      if (error) {
-        console.error('Sync failed:', error.message);
-      } else if (data?.synced === false) {
-        console.info('Sync not applied:', data?.reason || 'unknown_reason');
-      }
-      await fetchSub();
-    };
-
-    syncStripeSubscription();
-    const interval = setInterval(syncStripeSubscription, 30000);
+    fetchSub();
 
     // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
@@ -122,7 +111,6 @@ const PricingSection = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [user]);
