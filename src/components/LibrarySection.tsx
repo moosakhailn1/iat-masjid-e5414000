@@ -18,6 +18,7 @@ const LibrarySection = () => {
   const [selectedKhutbahType, setSelectedKhutbahType] = useState<string>('All');
   const [selectedSeerahCategory, setSelectedSeerahCategory] = useState<string>('All');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  const [dbContent, setDbContent] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -27,44 +28,83 @@ const LibrarySection = () => {
     }
   }, [user]);
 
+  // Load admin-added content from DB
+  useEffect(() => {
+    supabase.from('library_content').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+      setDbContent(data || []);
+    });
+  }, []);
+
+  // Merge static + DB content
+  const allHadiths = useMemo(() => {
+    const dbH = dbContent.filter(c => c.content_type === 'hadith').map(c => ({
+      id: c.id, arabic: c.arabic, english: c.english, pashto: c.pashto, dari: c.dari,
+      source: c.source, number: c.hadith_number || 0, narrator: c.narrator || '', category: c.category,
+    }));
+    return [...hadiths, ...dbH];
+  }, [dbContent]);
+
+  const allDuas = useMemo(() => {
+    const dbD = dbContent.filter(c => c.content_type === 'dua').map(c => ({
+      id: c.id, arabic: c.arabic, english: c.english, pashto: c.pashto, dari: c.dari,
+      source: c.source, occasion: c.occasion || '', category: c.category,
+    }));
+    return [...duas, ...dbD];
+  }, [dbContent]);
+
+  const allKhutbahs = useMemo(() => {
+    const dbK = dbContent.filter(c => c.content_type === 'khutbah').map(c => ({
+      id: c.id, title: c.title || '', arabic: c.arabic, english: c.english, pashto: c.pashto, dari: c.dari,
+      imam: c.imam || '', date: c.event_date || '', topic: c.source, category: c.category,
+      type: c.content_subtype || 'General', fullText: c.full_text || '',
+    }));
+    return [...khutbahs, ...dbK];
+  }, [dbContent]);
+
+  const allSeerah = useMemo(() => {
+    const dbS = dbContent.filter(c => c.content_type === 'seerah').map(c => ({
+      id: c.id, title: c.title || '', arabic: c.arabic, english: c.english, pashto: c.pashto, dari: c.dari,
+      year: c.event_date || '', source: c.source, category: c.category, details: c.full_text || '',
+    }));
+    return [...seerahEvents, ...dbS];
+  }, [dbContent]);
+
   const filteredHadiths = useMemo(() => {
-    return hadiths.filter(h => {
+    return allHadiths.filter(h => {
       const q = search.toLowerCase();
       const matchesSearch = !search || h.english.toLowerCase().includes(q) || h.arabic.includes(search) || h.pashto.toLowerCase().includes(q) || h.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || h.category === selectedCategory;
       return matchesSearch && matchesCat;
     });
-  }, [search, selectedCategory]);
+  }, [search, selectedCategory, allHadiths]);
 
   const filteredDuas = useMemo(() => {
-    return duas.filter(d => {
+    return allDuas.filter(d => {
       const q = search.toLowerCase();
       const matchesSearch = !search || d.english.toLowerCase().includes(q) || d.arabic.includes(search) || d.pashto.toLowerCase().includes(q) || d.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || d.category === selectedCategory;
       return matchesSearch && matchesCat;
     });
-  }, [search, selectedCategory]);
+  }, [search, selectedCategory, allDuas]);
 
   const filteredKhutbahs = useMemo(() => {
-    return khutbahs.filter(k => {
+    return allKhutbahs.filter(k => {
       const q = search.toLowerCase();
       const matchesSearch = !search || k.title.toLowerCase().includes(q) || k.english.toLowerCase().includes(q) || k.pashto.toLowerCase().includes(q) || k.dari.toLowerCase().includes(q);
       const matchesCat = selectedCategory === 'All' || k.category === selectedCategory;
       const matchesType = selectedKhutbahType === 'All' || k.type === selectedKhutbahType;
       return matchesSearch && matchesCat && matchesType;
     });
-  }, [search, selectedCategory, selectedKhutbahType]);
+  }, [search, selectedCategory, selectedKhutbahType, allKhutbahs]);
 
   const filteredSeerah = useMemo(() => {
-    return seerahEvents.filter(s => {
+    return allSeerah.filter(s => {
       const q = search.toLowerCase();
       const matchesSearch = !search || s.title.toLowerCase().includes(q) || s.english.toLowerCase().includes(q) || s.pashto.toLowerCase().includes(q) || s.dari.toLowerCase().includes(q);
       const matchesCat = selectedSeerahCategory === 'All' || s.category === selectedSeerahCategory;
       return matchesSearch && matchesCat;
     });
-  }, [search, selectedSeerahCategory]);
-
-  const activeCategories = tab === 'seerah' ? null : categories;
+  }, [search, selectedSeerahCategory, allSeerah]);
 
   return (
     <div className="space-y-6">
