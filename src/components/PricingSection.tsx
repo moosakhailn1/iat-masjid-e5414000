@@ -6,6 +6,9 @@ const plans = [
     name: 'Seeker AI',
     monthly: 4.99,
     yearly: 47.99,
+    // TODO: Replace with your Stripe Payment Links
+    // monthlyLink: 'https://buy.stripe.com/YOUR_SEEKER_MONTHLY_LINK',
+    // yearlyLink: 'https://buy.stripe.com/YOUR_SEEKER_YEARLY_LINK',
     features: ['50 AI questions/day', 'Basic Islamic Q&A', 'Hadith search', 'Email support'],
   },
   {
@@ -13,24 +16,40 @@ const plans = [
     monthly: 9.99,
     yearly: 95.99,
     popular: true,
+    // TODO: Replace with your Stripe Payment Links
+    // monthlyLink: 'https://buy.stripe.com/YOUR_STUDENT_MONTHLY_LINK',
+    // yearlyLink: 'https://buy.stripe.com/YOUR_STUDENT_YEARLY_LINK',
     features: ['150 AI questions/day', 'Advanced Islamic guidance', 'Quran tafsir access', 'Fiqh comparisons', 'Priority support'],
   },
   {
     name: 'Scholar AI',
     monthly: 19.99,
     yearly: 191.99,
+    // TODO: Replace with your Stripe Payment Links
+    // monthlyLink: 'https://buy.stripe.com/YOUR_SCHOLAR_MONTHLY_LINK',
+    // yearlyLink: 'https://buy.stripe.com/YOUR_SCHOLAR_YEARLY_LINK',
     features: ['500 AI questions/day', 'Scholarly research tools', 'Arabic language support', 'Hadith chain analysis', 'Multi-language translations'],
   },
   {
     name: 'Imam AI',
     monthly: 39.99,
     yearly: 383.99,
+    // TODO: Replace with your Stripe Payment Links
+    // monthlyLink: 'https://buy.stripe.com/YOUR_IMAM_MONTHLY_LINK',
+    // yearlyLink: 'https://buy.stripe.com/YOUR_IMAM_YEARLY_LINK',
     features: ['Unlimited AI questions', 'Khutbah preparation tools', 'Community management', 'Custom Islamic curriculum', 'Dedicated support'],
   },
 ];
 
 const PricingSection = () => {
   const [isYearly, setIsYearly] = useState(false);
+
+  const handleSubscribe = (plan: typeof plans[0]) => {
+    // TODO: Uncomment and use when Stripe links are ready
+    // const link = isYearly ? plan.yearlyLink : plan.monthlyLink;
+    // if (link) window.open(link, '_blank');
+    alert(`Stripe integration coming soon for ${plan.name}! (${isYearly ? 'yearly' : 'monthly'})`);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -87,11 +106,14 @@ const PricingSection = () => {
               ))}
             </ul>
 
-            <button className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              plan.popular
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-secondary text-secondary-foreground hover:bg-muted'
-            }`}>
+            <button
+              onClick={() => handleSubscribe(plan)}
+              className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                plan.popular
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-secondary text-secondary-foreground hover:bg-muted'
+              }`}
+            >
               Get Started
             </button>
           </div>
