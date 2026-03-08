@@ -85,28 +85,34 @@ export type Database = {
           id: string
           is_active: boolean
           monthly_link: string | null
+          monthly_price_id: string | null
           plan: string
           updated_at: string
           updated_by: string | null
           yearly_link: string | null
+          yearly_price_id: string | null
         }
         Insert: {
           id?: string
           is_active?: boolean
           monthly_link?: string | null
+          monthly_price_id?: string | null
           plan: string
           updated_at?: string
           updated_by?: string | null
           yearly_link?: string | null
+          yearly_price_id?: string | null
         }
         Update: {
           id?: string
           is_active?: boolean
           monthly_link?: string | null
+          monthly_price_id?: string | null
           plan?: string
           updated_at?: string
           updated_by?: string | null
           yearly_link?: string | null
+          yearly_price_id?: string | null
         }
         Relationships: []
       }
