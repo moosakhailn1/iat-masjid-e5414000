@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { Check, Crown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, Crown, Tag } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const plans = [
   {
     name: 'Seeker AI',
     monthly: 4.99,
     yearly: 47.99,
-    // TODO: Replace with your Stripe Payment Links
-    // monthlyLink: 'https://buy.stripe.com/YOUR_SEEKER_MONTHLY_LINK',
-    // yearlyLink: 'https://buy.stripe.com/YOUR_SEEKER_YEARLY_LINK',
     features: ['50 AI questions/day', 'Basic Islamic Q&A', 'Hadith search', 'Email support'],
   },
   {
@@ -17,49 +16,103 @@ const plans = [
     monthly: 9.99,
     yearly: 95.99,
     popular: true,
-    // TODO: Replace with your Stripe Payment Links
-    // monthlyLink: 'https://buy.stripe.com/YOUR_STUDENT_MONTHLY_LINK',
-    // yearlyLink: 'https://buy.stripe.com/YOUR_STUDENT_YEARLY_LINK',
     features: ['150 AI questions/day', 'Advanced Islamic guidance', 'Quran tafsir access', 'Fiqh comparisons', 'Priority support'],
   },
   {
     name: 'Scholar AI',
     monthly: 19.99,
     yearly: 191.99,
-    // TODO: Replace with your Stripe Payment Links
-    // monthlyLink: 'https://buy.stripe.com/YOUR_SCHOLAR_MONTHLY_LINK',
-    // yearlyLink: 'https://buy.stripe.com/YOUR_SCHOLAR_YEARLY_LINK',
     features: ['500 AI questions/day', 'Scholarly research tools', 'Arabic language support', 'Hadith chain analysis', 'Multi-language translations'],
   },
   {
     name: 'Imam AI',
     monthly: 39.99,
     yearly: 383.99,
-    // TODO: Replace with your Stripe Payment Links
-    // monthlyLink: 'https://buy.stripe.com/YOUR_IMAM_MONTHLY_LINK',
-    // yearlyLink: 'https://buy.stripe.com/YOUR_IMAM_YEARLY_LINK',
     features: ['Unlimited AI questions', 'Khutbah preparation tools', 'Community management', 'Custom Islamic curriculum', 'Dedicated support'],
   },
 ];
 
 const PricingSection = () => {
   const [isYearly, setIsYearly] = useState(false);
+  const [paymentLinks, setPaymentLinks] = useState<Record<string, { monthly_link: string | null; yearly_link: string | null }>>({});
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    loadPaymentLinks();
+    loadDiscounts();
+  }, []);
+
+  const loadPaymentLinks = async () => {
+    const { data } = await supabase.from('payment_links').select('*');
+    if (data) {
+      const map: Record<string, any> = {};
+      data.forEach((l: any) => { map[l.plan] = l; });
+      setPaymentLinks(map);
+    }
+  };
+
+  const loadDiscounts = async () => {
+    const { data } = await supabase.from('discount_codes').select('*');
+    setDiscounts(data || []);
+  };
+
+  const bannerDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'banner');
+  const cardDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'card');
+
+  const applyPromoCode = () => {
+    const found = discounts.find(d => d.code === promoCode.toUpperCase() && d.is_active);
+    if (found) {
+      setAppliedDiscount(found);
+      toast.success(`Code "${found.code}" applied — ${found.discount_percent}% off!`);
+    } else {
+      toast.error('Invalid or expired promo code');
+    }
+  };
+
+  const getDiscountForPlan = (planName: string) => {
+    // Applied promo code takes priority
+    if (appliedDiscount && (!appliedDiscount.plan || appliedDiscount.plan === planName)) {
+      return appliedDiscount.discount_percent;
+    }
+    // Card-visible discount
+    const cardDiscount = cardDiscounts.find(d => !d.plan || d.plan === planName);
+    if (cardDiscount) return cardDiscount.discount_percent;
+    return 0;
+  };
+
+  const getDiscountedPrice = (price: number, planName: string) => {
+    const pct = getDiscountForPlan(planName);
+    if (!pct) return price;
+    return +(price * (1 - pct / 100)).toFixed(2);
+  };
 
   const handleSubscribe = (plan: typeof plans[0]) => {
-    // TODO: Uncomment and use when Stripe links are ready
-    // const link = isYearly ? plan.yearlyLink : plan.monthlyLink;
-    // if (link) window.open(link, '_blank');
+    const link = paymentLinks[plan.name];
+    const url = isYearly ? link?.yearly_link : link?.monthly_link;
 
-    // Confirmation of perks upon subscribing
-    toast.success(
-      `${plan.name} — ${isYearly ? 'Yearly' : 'Monthly'} Plan\n\nYou'll get:\n${plan.features.join('\n')}`,
-      { duration: 6000 }
-    );
-    toast.info('Stripe integration coming soon! Your perks will activate after payment.', { duration: 4000 });
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast.info('Payment not yet configured for this plan. Please check back soon!');
+    }
   };
 
   return (
     <div className="animate-fade-in">
+      {/* Banner discounts */}
+      {bannerDiscounts.map(d => (
+        <div key={d.id} className="mb-4 bg-primary/10 border border-primary/30 rounded-xl p-4 text-center">
+          <Tag size={16} className="inline mr-2 text-primary" />
+          <span className="text-foreground font-semibold">
+            Use code <span className="font-mono text-primary">{d.code}</span> for {d.discount_percent}% off
+            {d.plan ? ` on ${d.plan}` : ' any plan'}!
+          </span>
+        </div>
+      ))}
+
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-foreground mb-2">Upgrade Your Islamic Knowledge</h2>
         <p className="text-muted-foreground text-sm max-w-md mx-auto">
@@ -79,52 +132,91 @@ const PricingSection = () => {
             Yearly <span className="text-primary text-xs">Save 20%</span>
           </span>
         </div>
+
+        {/* Promo code input */}
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <input
+            value={promoCode}
+            onChange={e => setPromoCode(e.target.value)}
+            placeholder="Promo code"
+            className="bg-secondary text-foreground rounded-lg px-3 py-2 text-sm border border-border focus:border-primary focus:outline-none w-40"
+          />
+          <button
+            onClick={applyPromoCode}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+          >
+            Apply
+          </button>
+          {appliedDiscount && (
+            <button onClick={() => { setAppliedDiscount(null); setPromoCode(''); }} className="text-xs text-muted-foreground hover:text-foreground">
+              ✕ Remove
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map(plan => (
-          <div
-            key={plan.name}
-            className={`bg-card border rounded-xl p-5 flex flex-col ${
-              plan.popular ? 'border-primary card-glow' : 'border-border'
-            }`}
-          >
-            {plan.popular && (
-              <div className="flex items-center gap-1 text-primary text-xs font-semibold mb-2">
-                <Crown size={12} /> Most Popular
-              </div>
-            )}
-            <h3 className="text-foreground font-bold text-lg">{plan.name}</h3>
-            <div className="mt-2 mb-4">
-              <span className="text-3xl font-bold text-foreground">
-                ${isYearly ? plan.yearly : plan.monthly}
-              </span>
-              <span className="text-muted-foreground text-sm">
-                /{isYearly ? 'year' : 'month'}
-              </span>
-            </div>
+        {plans.map(plan => {
+          const discount = getDiscountForPlan(plan.name);
+          const basePrice = isYearly ? plan.yearly : plan.monthly;
+          const finalPrice = getDiscountedPrice(basePrice, plan.name);
+          const cardDiscount = cardDiscounts.find(d => !d.plan || d.plan === plan.name);
 
-            <ul className="space-y-2 mb-6 flex-1">
-              {plan.features.map(f => (
-                <li key={f} className="flex items-start gap-2 text-sm text-secondary-foreground">
-                  <Check size={14} className="text-primary mt-0.5 shrink-0" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={() => handleSubscribe(plan)}
-              className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                plan.popular
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-secondary text-secondary-foreground hover:bg-muted'
+          return (
+            <div
+              key={plan.name}
+              className={`bg-card border rounded-xl p-5 flex flex-col ${
+                plan.popular ? 'border-primary card-glow' : 'border-border'
               }`}
             >
-              Get Started
-            </button>
-          </div>
-        ))}
+              {plan.popular && (
+                <div className="flex items-center gap-1 text-primary text-xs font-semibold mb-2">
+                  <Crown size={12} /> Most Popular
+                </div>
+              )}
+
+              {/* Card-level discount badge */}
+              {cardDiscount && !appliedDiscount && (
+                <div className="flex items-center gap-1 text-xs font-semibold mb-2 text-green-400">
+                  <Tag size={12} /> {cardDiscount.discount_percent}% off — {cardDiscount.code}
+                </div>
+              )}
+
+              <h3 className="text-foreground font-bold text-lg">{plan.name}</h3>
+              <div className="mt-2 mb-4">
+                {discount > 0 ? (
+                  <>
+                    <span className="text-lg text-muted-foreground line-through mr-2">${basePrice}</span>
+                    <span className="text-3xl font-bold text-foreground">${finalPrice}</span>
+                  </>
+                ) : (
+                  <span className="text-3xl font-bold text-foreground">${basePrice}</span>
+                )}
+                <span className="text-muted-foreground text-sm">/{isYearly ? 'year' : 'month'}</span>
+              </div>
+
+              <ul className="space-y-2 mb-6 flex-1">
+                {plan.features.map(f => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-secondary-foreground">
+                    <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => handleSubscribe(plan)}
+                className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  plan.popular
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-secondary text-secondary-foreground hover:bg-muted'
+                }`}
+              >
+                Get Started
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
