@@ -4,25 +4,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Price IDs from the connected Stripe account (one-time payments)
-const PRICE_MAP: Record<string, { monthly: string; yearly: string }> = {
-  'Seeker AI': {
-    monthly: 'price_1T8ZVKAsE14xpVtlOfBOHu1m',
-    yearly: 'price_1T8ZboAsE14xpVtlpR2K8pmw',
-  },
-  'Student AI': {
-    monthly: 'price_1T8ZmWAsE14xpVtltld9dNLs',
-    yearly: 'price_1T8ZsZAsE14xpVtl98PZrqBY',
-  },
-  'Scholar AI': {
-    monthly: 'price_1T8ZuCAsE14xpVtlSHYm4vZF',
-    yearly: 'price_1T8ZvnAsE14xpVtlbaMPsy6Q',
-  },
-  'Imam AI': {
-    monthly: 'price_1T8a1FAsE14xpVtlNxv25let',
-    yearly: 'price_1T8a2tAsE14xpVtlkz0COiS5',
-  },
-};
+// Price IDs are loaded from the database (payment_links table)
+// Admins can update them in the Admin Panel → Payment Links tab
 
 const plans = [
   {
