@@ -180,6 +180,19 @@ const PricingSection = () => {
         </div>
       ))}
 
+      {/* Current plan badge */}
+      {user && !subLoading && (
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-5 py-2.5">
+            <Crown size={16} className="text-primary" />
+            <span className="text-sm text-muted-foreground">Your current plan:</span>
+            <span className="text-sm font-bold text-foreground capitalize">
+              {currentPlan === 'free' ? 'Free' : currentPlan}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-foreground mb-2">Upgrade Your Islamic Knowledge</h2>
         <p className="text-muted-foreground text-sm max-w-md mx-auto">
