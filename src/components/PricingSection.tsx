@@ -74,12 +74,43 @@ const PricingSection = () => {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const [currentPlan, setCurrentPlan] = useState<string>('free');
+  const [subLoading, setSubLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
     loadPaymentLinks();
     loadDiscounts();
   }, []);
+
+  useEffect(() => {
+    if (!user) { setCurrentPlan('free'); setSubLoading(false); return; }
+    const fetchSub = async () => {
+      const { data } = await supabase
+        .from('user_subscriptions')
+        .select('plan')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setCurrentPlan(data?.plan || 'free');
+      setSubLoading(false);
+    };
+    fetchSub();
+
+    // Realtime subscription for instant updates (e.g. admin grants)
+    const channel = supabase
+      .channel(`user_sub:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new?.plan) setCurrentPlan(payload.new.plan);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const loadPaymentLinks = async () => {
     const { data } = await supabase.from('payment_links').select('*');
