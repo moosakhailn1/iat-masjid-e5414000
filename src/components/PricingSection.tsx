@@ -96,7 +96,12 @@ const PricingSection = () => {
     };
 
     const syncStripeSubscription = async () => {
-      await supabase.functions.invoke('sync-subscription');
+      const { data, error } = await supabase.functions.invoke('sync-subscription');
+      if (error) {
+        console.error('Sync failed:', error.message);
+      } else if (data?.synced === false) {
+        console.info('Sync not applied:', data?.reason || 'unknown_reason');
+      }
       await fetchSub();
     };
 
@@ -204,15 +209,22 @@ const PricingSection = () => {
             <button
               onClick={async () => {
                 setSubLoading(true);
-                await supabase.functions.invoke('sync-subscription');
-                const { data } = await supabase
+                const { data, error } = await supabase.functions.invoke('sync-subscription');
+                const { data: subData } = await supabase
                   .from('user_subscriptions')
                   .select('plan')
                   .eq('user_id', user.id)
                   .maybeSingle();
-                setCurrentPlan(data?.plan || 'free');
+                setCurrentPlan(subData?.plan || 'free');
                 setSubLoading(false);
-                toast.success('Subscription synced');
+
+                if (error) {
+                  toast.error('Could not sync subscription right now');
+                } else if (data?.synced) {
+                  toast.success('Subscription synced');
+                } else {
+                  toast.error('No paid checkout found for this account email yet');
+                }
               }}
               className="text-xs bg-secondary text-secondary-foreground border border-border rounded-full px-3 py-1 hover:bg-muted"
             >
