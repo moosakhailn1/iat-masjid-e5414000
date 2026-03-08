@@ -292,7 +292,7 @@ const UstadhAI = () => {
         />
         <button
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || remaining <= 0 || isLoading}
+          disabled={!input.trim() || (!isUnlimited && remaining <= 0) || isLoading}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-primary disabled:text-muted-foreground transition-colors"
         >
           <Send size={18} />
