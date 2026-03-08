@@ -1,0 +1,4 @@
+project_id = "cixueqakrifozagnqazw"
+
+[functions.ustadh-ai]
+verify_jwt = false

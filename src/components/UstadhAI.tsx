@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { toast } from 'sonner';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,33 +16,126 @@ const suggestedQuestions = [
 ];
 
 const FREE_LIMIT = 15;
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const UstadhAI = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [questionsUsed, setQuestionsUsed] = useState(0);
+  const [questionsUsed, setQuestionsUsed] = useState(() => {
+    const stored = localStorage.getItem('ustadh_ai_usage');
+    if (stored) {
+      const { count, date } = JSON.parse(stored);
+      if (date === new Date().toDateString()) return count;
+    }
+    return 0;
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   const remaining = FREE_LIMIT - questionsUsed;
+
+  useEffect(() => {
+    localStorage.setItem('ustadh_ai_usage', JSON.stringify({ count: questionsUsed, date: new Date().toDateString() }));
+  }, [questionsUsed]);
+
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || remaining <= 0 || isLoading) return;
 
     const userMsg: Message = { role: 'user', content: text };
-    setMessages(prev => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput('');
     setQuestionsUsed(prev => prev + 1);
     setIsLoading(true);
 
-    // Mock AI response for now
-    setTimeout(() => {
-      const response: Message = {
-        role: 'assistant',
-        content: getStaticResponse(text),
+    let assistantSoFar = '';
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: newMessages }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || `Error ${resp.status}`);
+      }
+
+      if (!resp.body) throw new Error('No response body');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = '';
+
+      const upsertAssistant = (chunk: string) => {
+        assistantSoFar += chunk;
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant') {
+            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
+          }
+          return [...prev, { role: 'assistant', content: assistantSoFar }];
+        });
       };
-      setMessages(prev => [...prev, response]);
+
+      let streamDone = false;
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') { streamDone = true; break; }
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) upsertAssistant(content);
+          } catch {
+            textBuffer = line + '\n' + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Flush remaining
+      if (textBuffer.trim()) {
+        for (let raw of textBuffer.split('\n')) {
+          if (!raw) continue;
+          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
+          if (!raw.startsWith('data: ')) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) upsertAssistant(content);
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (e: any) {
+      console.error('Ustadh AI error:', e);
+      toast.error(e.message || 'Failed to get response');
+      setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I was unable to process your question. Please try again.' }]);
+    } finally {
       setIsLoading(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -71,27 +166,31 @@ const UstadhAI = () => {
 
       {/* Chat area */}
       {messages.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-4 mb-4 max-h-[400px] overflow-y-auto space-y-4">
+        <div ref={chatRef} className="bg-card border border-border rounded-xl p-4 mb-4 max-h-[400px] overflow-y-auto space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-1">
                   <Bot size={14} className="text-primary" />
                 </div>
               )}
               <div className={`rounded-xl px-4 py-2.5 text-sm max-w-[80%] ${
                 msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
               }`}>
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <div className="prose prose-sm prose-invert max-w-none">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : msg.content}
               </div>
               {msg.role === 'user' && (
-                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
                   <User size={14} className="text-muted-foreground" />
                 </div>
               )}
             </div>
           ))}
-          {isLoading && (
+          {isLoading && !messages.find((_, i) => i === messages.length - 1 && messages[messages.length - 1]?.role === 'assistant') && (
             <div className="flex gap-3">
               <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                 <Bot size={14} className="text-primary" />
@@ -149,22 +248,5 @@ const UstadhAI = () => {
     </div>
   );
 };
-
-function getStaticResponse(question: string): string {
-  const q = question.toLowerCase();
-  if (q.includes('five pillars') || q.includes('pillars of islam')) {
-    return 'The Five Pillars of Islam are:\n\n1. **Shahada** — Testimony of faith\n2. **Salah** — Prayer (five times daily)\n3. **Zakat** — Obligatory charity\n4. **Sawm** — Fasting during Ramadan\n5. **Hajj** — Pilgrimage to Makkah\n\nThese are the foundational acts of worship in Islam, as narrated in Sahih Bukhari and Sahih Muslim.';
-  }
-  if (q.includes('salah') || q.includes('prayer') || q.includes('pray')) {
-    return 'To perform Salah correctly, you should:\n\n1. Make Wudu (ablution)\n2. Face the Qiblah direction\n3. Make the intention (Niyyah)\n4. Say "Allahu Akbar" to begin\n5. Recite Surah Al-Fatiha\n6. Perform Ruku (bowing)\n7. Stand up from Ruku\n8. Perform Sujood (prostration)\n9. Sit between prostrations\n10. Complete with Tashahhud and Salam\n\nThe Prophet ﷺ said: "Pray as you have seen me praying." (Sahih Bukhari)';
-  }
-  if (q.includes('patience') || q.includes('sabr')) {
-    return 'The Quran speaks extensively about patience (Sabr):\n\n"O you who believe, seek help through patience and prayer. Indeed, Allah is with the patient." (2:153)\n\n"And We will surely test you with something of fear and hunger and a loss of wealth and lives and fruits, but give good tidings to the patient." (2:155)\n\nThe Prophet ﷺ said: "Patience is illumination." (Sahih Muslim)';
-  }
-  if (q.includes('ramadan')) {
-    return 'Ramadan is the ninth month of the Islamic calendar, during which Muslims fast from dawn to sunset.\n\nIts significance:\n- The Quran was revealed in Ramadan\n- It contains Laylat al-Qadr (Night of Power)\n- Fasting is one of the Five Pillars\n- It is a month of mercy, forgiveness, and salvation\n\n"Whoever fasts during Ramadan with sincere faith and hoping for a reward from Allah, all his previous sins will be forgiven." (Sahih Bukhari)';
-  }
-  return 'JazakAllahu Khairan for your question. Based on authentic Islamic sources, I would recommend consulting the Quran and authentic Hadith collections for detailed guidance on this topic. You may also want to speak with a local scholar or imam for personalized advice.\n\nRemember: "Seeking knowledge is an obligation upon every Muslim." (Sunan Ibn Majah)';
-}
 
 export default UstadhAI;
