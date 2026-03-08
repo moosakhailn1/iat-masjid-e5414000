@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { dailyHadith } from '@/data/library';
+import { hadiths } from '@/data/library';
 
 const DailyHadith = () => {
   const [showTranslations, setShowTranslations] = useState(false);
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   });
+
+  // Rotate daily based on day of year
+  const dailyHadith = useMemo(() => {
+    const start = new Date(today.getFullYear(), 0, 0);
+    const diff = today.getTime() - start.getTime();
+    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const index = dayOfYear % hadiths.length;
+    return hadiths[index];
+  }, [today.toDateString()]);
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 md:p-8 card-glow animate-fade-in">
@@ -19,7 +29,7 @@ const DailyHadith = () => {
             Daily Hadith
           </span>
         </div>
-        <span className="text-muted-foreground text-sm">{today}</span>
+        <span className="text-muted-foreground text-sm">{dateStr}</span>
       </div>
 
       <p className="font-arabic text-primary text-xl md:text-2xl text-right leading-relaxed mb-4">
@@ -28,7 +38,6 @@ const DailyHadith = () => {
 
       <p className="text-foreground italic mb-3">{dailyHadith.english}</p>
 
-      {/* Pashto/Dari toggle */}
       <button
         onClick={() => setShowTranslations(!showTranslations)}
         className="flex items-center gap-1 text-primary text-xs mb-3 hover:underline"
