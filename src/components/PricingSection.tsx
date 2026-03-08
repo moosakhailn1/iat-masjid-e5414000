@@ -350,13 +350,16 @@ const PricingSection = () => {
               ) : (
                 <button
                   onClick={() => handleSubscribe(plan)}
+                  disabled={checkoutLoading === plan.name}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     plan.popular
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                       : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                  }`}
+                  } disabled:opacity-50`}
                 >
-                  {currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
+                  {checkoutLoading === plan.name
+                    ? 'Redirecting…'
+                    : currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
                 </button>
               )}
             </div>
