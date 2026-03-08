@@ -147,6 +147,20 @@ const PricingSection = () => {
     setDiscounts(data || []);
   };
 
+  const loadPriceMap = async () => {
+    const { data } = await supabase.from('payment_links').select('*');
+    const map: Record<string, { monthly: string; yearly: string }> = {};
+    (data || []).forEach((row: any) => {
+      if (row.monthly_price_id || row.yearly_price_id) {
+        map[row.plan] = {
+          monthly: row.monthly_price_id || '',
+          yearly: row.yearly_price_id || '',
+        };
+      }
+    });
+    setPriceMap(map);
+  };
+
   const bannerDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'banner');
   const cardDiscounts = discounts.filter(d => d.is_active && d.display_mode === 'card');
 
