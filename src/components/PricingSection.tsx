@@ -4,6 +4,26 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Price IDs from the connected Stripe account (one-time payments)
+const PRICE_MAP: Record<string, { monthly: string; yearly: string }> = {
+  'Seeker AI': {
+    monthly: 'price_1T8ZVKAsE14xpVtlOfBOHu1m',
+    yearly: 'price_1T8ZboAsE14xpVtlpR2K8pmw',
+  },
+  'Student AI': {
+    monthly: 'price_1T8ZmWAsE14xpVtltld9dNLs',
+    yearly: 'price_1T8ZsZAsE14xpVtl98PZrqBY',
+  },
+  'Scholar AI': {
+    monthly: 'price_1T8ZuCAsE14xpVtlSHYm4vZF',
+    yearly: 'price_1T8ZvnAsE14xpVtlbaMPsy6Q',
+  },
+  'Imam AI': {
+    monthly: 'price_1T8a1FAsE14xpVtlNxv25let',
+    yearly: 'price_1T8a2tAsE14xpVtlkz0COiS5',
+  },
+};
+
 const plans = [
   {
     name: 'Seeker AI',
@@ -70,21 +90,21 @@ const plans = [
 
 const PricingSection = () => {
   const [isYearly, setIsYearly] = useState(false);
-  const [paymentLinks, setPaymentLinks] = useState<Record<string, { monthly_link: string | null; yearly_link: string | null }>>({});
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
   const [subLoading, setSubLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    loadPaymentLinks();
     loadDiscounts();
   }, []);
 
   useEffect(() => {
     if (!user) { setCurrentPlan('free'); setSubLoading(false); return; }
+
     const fetchSub = async () => {
       const { data } = await supabase
         .from('user_subscriptions')
@@ -95,7 +115,29 @@ const PricingSection = () => {
       setSubLoading(false);
     };
 
-    fetchSub();
+    // Auto-sync from Stripe on load and after returning from checkout
+    const syncAndFetch = async () => {
+      await supabase.functions.invoke('sync-subscription');
+      await fetchSub();
+    };
+
+    syncAndFetch();
+
+    // Check if returning from checkout
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      // Poll sync a few times to catch the payment
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        await supabase.functions.invoke('sync-subscription');
+        await fetchSub();
+        if (attempts >= 6) clearInterval(pollInterval);
+      }, 5000);
+
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
 
     // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
@@ -114,15 +156,6 @@ const PricingSection = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
-
-  const loadPaymentLinks = async () => {
-    const { data } = await supabase.from('payment_links').select('*');
-    if (data) {
-      const map: Record<string, any> = {};
-      data.forEach((l: any) => { map[l.plan] = l; });
-      setPaymentLinks(map);
-    }
-  };
 
   const loadDiscounts = async () => {
     const { data } = await supabase.from('discount_codes').select('*');
@@ -143,11 +176,9 @@ const PricingSection = () => {
   };
 
   const getDiscountForPlan = (planName: string) => {
-    // Applied promo code takes priority
     if (appliedDiscount && (!appliedDiscount.plan || appliedDiscount.plan === planName)) {
       return appliedDiscount.discount_percent;
     }
-    // Card-visible discount
     const cardDiscount = cardDiscounts.find(d => !d.plan || d.plan === planName);
     if (cardDiscount) return cardDiscount.discount_percent;
     return 0;
@@ -159,14 +190,36 @@ const PricingSection = () => {
     return +(price * (1 - pct / 100)).toFixed(2);
   };
 
-  const handleSubscribe = (plan: typeof plans[0]) => {
-    const link = paymentLinks[plan.name];
-    const url = isYearly ? link?.yearly_link : link?.monthly_link;
+  const handleSubscribe = async (plan: typeof plans[0]) => {
+    if (!user) {
+      toast.info('Please sign in first to subscribe.');
+      return;
+    }
 
-    if (url) {
-      window.open(url, '_blank');
-    } else {
-      toast.info('Payment not yet configured for this plan. Please check back soon!');
+    const prices = PRICE_MAP[plan.name];
+    if (!prices) {
+      toast.error('Payment not configured for this plan.');
+      return;
+    }
+
+    const priceId = isYearly ? prices.yearly : prices.monthly;
+    setCheckoutLoading(plan.name);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { priceId },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to start checkout');
+    } finally {
+      setCheckoutLoading(null);
     }
   };
 
@@ -297,13 +350,16 @@ const PricingSection = () => {
               ) : (
                 <button
                   onClick={() => handleSubscribe(plan)}
+                  disabled={checkoutLoading === plan.name}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     plan.popular
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                       : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                  }`}
+                  } disabled:opacity-50`}
                 >
-                  {currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
+                  {checkoutLoading === plan.name
+                    ? 'Redirecting…'
+                    : currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
                 </button>
               )}
             </div>
