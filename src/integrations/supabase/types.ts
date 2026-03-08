@@ -21,6 +21,7 @@ export type Database = {
           created_by: string | null
           current_uses: number
           discount_percent: number
+          display_mode: string
           expires_at: string | null
           id: string
           is_active: boolean
@@ -33,6 +34,7 @@ export type Database = {
           created_by?: string | null
           current_uses?: number
           discount_percent?: number
+          display_mode?: string
           expires_at?: string | null
           id?: string
           is_active?: boolean
@@ -45,6 +47,7 @@ export type Database = {
           created_by?: string | null
           current_uses?: number
           discount_percent?: number
+          display_mode?: string
           expires_at?: string | null
           id?: string
           is_active?: boolean
@@ -74,6 +77,36 @@ export type Database = {
           item_id?: string
           item_type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      payment_links: {
+        Row: {
+          id: string
+          is_active: boolean
+          monthly_link: string | null
+          plan: string
+          updated_at: string
+          updated_by: string | null
+          yearly_link: string | null
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          monthly_link?: string | null
+          plan: string
+          updated_at?: string
+          updated_by?: string | null
+          yearly_link?: string | null
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          monthly_link?: string | null
+          plan?: string
+          updated_at?: string
+          updated_by?: string | null
+          yearly_link?: string | null
         }
         Relationships: []
       }
