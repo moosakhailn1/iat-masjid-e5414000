@@ -30,7 +30,7 @@ const AdminPanel = () => {
   const [grantLimit, setGrantLimit] = useState(50);
 
   // Payment links form
-  const [editingLinks, setEditingLinks] = useState<Record<string, { monthly: string; yearly: string }>>({});
+  const [editingLinks, setEditingLinks] = useState<Record<string, { monthly: string; yearly: string; monthlyPriceId: string; yearlyPriceId: string }>>({});
 
   useEffect(() => {
     if (!isAdmin) return;
