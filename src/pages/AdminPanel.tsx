@@ -52,12 +52,14 @@ const AdminPanel = () => {
     setPaymentLinks(links);
     
     // Initialize editing state
-    const linksMap: Record<string, { monthly: string; yearly: string }> = {};
+    const linksMap: Record<string, { monthly: string; yearly: string; monthlyPriceId: string; yearlyPriceId: string }> = {};
     PLANS.forEach(plan => {
       const existing = links.find((l: any) => l.plan === plan);
       linksMap[plan] = {
         monthly: existing?.monthly_link || '',
         yearly: existing?.yearly_link || '',
+        monthlyPriceId: (existing as any)?.monthly_price_id || '',
+        yearlyPriceId: (existing as any)?.yearly_price_id || '',
       };
     });
     setEditingLinks(linksMap);
