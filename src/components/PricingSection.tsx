@@ -190,36 +190,8 @@ const PricingSection = () => {
   };
 
   const getCheckoutReturnUrl = () => {
-    const fallbackUrl = window.location.href;
-    const params = new URLSearchParams(window.location.search);
-
-    const isValidHttpUrl = (value: string) => {
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-      } catch {
-        return false;
-      }
-    };
-
-    // Preferred: explicit full parent page URL from iframe src
-    const parentUrlParam = params.get('parent_url') || params.get('return_url');
-    if (parentUrlParam && isValidHttpUrl(parentUrlParam)) {
-      return parentUrlParam;
-    }
-
-    // Fallback: referrer (may be origin-only depending on browser policy)
-    if (window.self !== window.top && document.referrer && isValidHttpUrl(document.referrer)) {
-      return document.referrer;
-    }
-
-    // If inside an iframe and no explicit URL found, redirect back to /islam/ folder
-    if (window.self !== window.top) {
-      const origin = window.location.origin;
-      return `${origin}/islam/`;
-    }
-
-    return fallbackUrl;
+    // Reverted: no iframe-specific behavior (uses the current page URL only)
+    return window.location.href;
   };
 
   const handleSubscribe = async (plan: typeof plans[0]) => {
@@ -245,8 +217,8 @@ const PricingSection = () => {
 
       if (error) throw error;
       if (data?.url) {
-        // Open in a new tab so the parent iframe host is preserved
-        window.open(data.url, '_blank');
+        // Navigate in the same tab (no iframe-specific behavior)
+        window.location.assign(data.url);
       } else {
         throw new Error('No checkout URL returned');
       }
