@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save } from 'lucide-react';
+import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const PLANS = ['Seeker AI', 'Student AI', 'Scholar AI', 'Imam AI'];
@@ -13,8 +13,11 @@ const AdminPanel = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content'>('users');
   const [users, setUsers] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [passwordModal, setPasswordModal] = useState<{ userId: string; email: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
   const [libraryContent, setLibraryContent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,14 +54,16 @@ const AdminPanel = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, discountsRes, subsRes, linksRes, contentRes] = await Promise.all([
+    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes] = await Promise.all([
       supabase.from('profiles').select('*'),
       supabase.from('discount_codes').select('*').order('created_at', { ascending: false }),
       supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false }),
       supabase.from('payment_links').select('*'),
       supabase.from('library_content').select('*').order('created_at', { ascending: false }),
+      supabase.functions.invoke('admin-users', { body: { action: 'list_roles' } }),
     ]);
     setUsers(profilesRes.data || []);
+    setUserRoles(rolesRes.data?.roles || []);
     setDiscounts(discountsRes.data || []);
     setSubscriptions(subsRes.data || []);
     const links = linksRes.data || [];
@@ -330,44 +335,143 @@ const AdminPanel = () => {
           <>
             {/* Users Tab */}
             {tab === 'users' && (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-3 text-muted-foreground font-medium">Name</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium">Plan</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium">Daily Limit</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium">Joined</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => {
-                      const sub = subscriptions.find(s => s.user_id === u.id);
-                      const isNonFree = sub && sub.plan !== 'free';
-                      return (
-                        <tr key={u.id} className="border-b border-border hover:bg-muted/50">
-                          <td className="p-3 text-foreground">{u.display_name || '—'}</td>
-                          <td className="p-3 text-foreground">{u.email}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded-full text-xs ${sub?.is_free_grant ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-secondary-foreground'}`}>
-                              {sub?.plan || 'free'} {sub?.is_free_grant ? '(free)' : ''}
-                            </span>
-                          </td>
-                          <td className="p-3 text-foreground">{sub?.daily_limit || 15}</td>
-                          <td className="p-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
-                          <td className="p-3">
-                            {isNonFree && (
-                              <button onClick={() => resetToDefault(u.id, u.email)} className="text-xs text-orange-400 hover:underline">Reset to Free</button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {users.length === 0 && <p className="text-center text-muted-foreground py-8">No users yet.</p>}
+              <div className="space-y-4">
+                {/* Password Reset Modal */}
+                {passwordModal && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm space-y-4">
+                      <h3 className="text-foreground font-semibold">Reset Password</h3>
+                      <p className="text-muted-foreground text-sm">For: {passwordModal.email}</p>
+                      <input
+                        type="text"
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="New password (min 6 chars)"
+                        className={inputClass + ' w-full'}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            if (newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+                            const { data, error } = await supabase.functions.invoke('admin-users', {
+                              body: { action: 'reset_password', targetUserId: passwordModal.userId, newPassword },
+                            });
+                            if (error || data?.error) toast.error(data?.error || error?.message || 'Failed');
+                            else { toast.success('Password reset!'); setPasswordModal(null); setNewPassword(''); }
+                          }}
+                          className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium"
+                        >
+                          Reset
+                        </button>
+                        <button onClick={() => { setPasswordModal(null); setNewPassword(''); }} className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-card border border-border rounded-xl overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-3 text-muted-foreground font-medium">Name</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Plan</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Joined</th>
+                        <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map(u => {
+                        const sub = subscriptions.find(s => s.user_id === u.id);
+                        const isUserAdmin = userRoles.some(r => r.user_id === u.id && r.role === 'admin');
+                        const isSelf = u.id === user?.id;
+
+                        return (
+                          <tr key={u.id} className="border-b border-border hover:bg-muted/50">
+                            <td className="p-3 text-foreground">{u.display_name || '—'}</td>
+                            <td className="p-3 text-foreground text-xs">{u.email}</td>
+                            <td className="p-3">
+                              {isUserAdmin ? (
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium">Admin</span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground">User</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs ${sub?.is_free_grant ? 'bg-primary/20 text-primary' : 'bg-secondary text-secondary-foreground'}`}>
+                                {sub?.plan || 'free'} {sub?.is_free_grant ? '(granted)' : ''}
+                              </span>
+                            </td>
+                            <td className="p-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+                            <td className="p-3">
+                              <div className="flex flex-wrap gap-1">
+                                {/* Toggle admin */}
+                                {!isSelf && (
+                                  <button
+                                    onClick={async () => {
+                                      const action = isUserAdmin ? 'remove_role' : 'add_role';
+                                      const { data, error } = await supabase.functions.invoke('admin-users', {
+                                        body: { action, targetUserId: u.id, role: 'admin' },
+                                      });
+                                      if (error || data?.error) toast.error(data?.error || 'Failed');
+                                      else { toast.success(isUserAdmin ? 'Admin removed' : 'Admin granted'); loadData(); }
+                                    }}
+                                    className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
+                                      isUserAdmin ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' : 'bg-primary/20 text-primary hover:bg-primary/30'
+                                    }`}
+                                    title={isUserAdmin ? 'Remove admin' : 'Make admin'}
+                                  >
+                                    {isUserAdmin ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
+                                    {isUserAdmin ? 'Remove Admin' : 'Make Admin'}
+                                  </button>
+                                )}
+
+                                {/* Reset password */}
+                                <button
+                                  onClick={() => setPasswordModal({ userId: u.id, email: u.email })}
+                                  className="text-xs px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-1"
+                                >
+                                  <Key size={12} /> Password
+                                </button>
+
+                                {/* Reset plan */}
+                                {sub && sub.plan !== 'free' && (
+                                  <button
+                                    onClick={() => resetToDefault(u.id, u.email)}
+                                    className="text-xs px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-muted"
+                                  >
+                                    Reset Plan
+                                  </button>
+                                )}
+
+                                {/* Delete user */}
+                                {!isSelf && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Delete ${u.email}? This cannot be undone.`)) return;
+                                      const { data, error } = await supabase.functions.invoke('admin-users', {
+                                        body: { action: 'delete_user', targetUserId: u.id },
+                                      });
+                                      if (error || data?.error) toast.error(data?.error || 'Failed');
+                                      else { toast.success('User deleted'); loadData(); }
+                                    }}
+                                    className="text-xs px-2 py-1 rounded bg-destructive/20 text-destructive hover:bg-destructive/30 flex items-center gap-1"
+                                  >
+                                    <UserX size={12} /> Delete
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {users.length === 0 && <p className="text-center text-muted-foreground py-8">No users yet.</p>}
+                </div>
               </div>
             )}
 
