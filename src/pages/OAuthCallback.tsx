@@ -15,31 +15,41 @@ const OAuthCallback = () => {
 
       if (error || !session?.access_token || !session.refresh_token) return;
 
-      try {
-        window.opener?.postMessage(
-          {
-            type: "oauth-complete",
-            session: {
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
+      const hasOpener = !!window.opener;
+
+      if (hasOpener) {
+        try {
+          window.opener?.postMessage(
+            {
+              type: "oauth-complete",
+              session: {
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              },
             },
-          },
-          window.location.origin,
-        );
-      } catch {
-        // ignore
+            window.location.origin,
+          );
+        } catch {
+          // ignore
+        }
       }
 
       done = true;
       setStatus("done");
 
-      // Close popup if possible (works when this window was opened via window.open)
       window.setTimeout(() => {
-        try {
-          window.close();
-        } catch {
-          // ignore
+        // Popup flow: close
+        if (hasOpener) {
+          try {
+            window.close();
+          } catch {
+            // ignore
+          }
+          return;
         }
+
+        // Same-tab flow: go back into the app
+        window.location.replace("/");
       }, 150);
     };
 
