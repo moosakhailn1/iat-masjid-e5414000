@@ -140,10 +140,43 @@ const AuthPage = () => {
           <button
             type="button"
             onClick={async () => {
-              const { error } = await lovable.auth.signInWithOAuth('google', {
-                redirect_uri: window.location.origin,
-              });
-              if (error) toast.error(String(error));
+              const isCustomDomain =
+                !window.location.hostname.includes("lovable.app") &&
+                !window.location.hostname.includes("lovableproject.com") &&
+                !window.location.hostname.includes("localhost");
+
+              if (isCustomDomain) {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                  provider: 'google',
+                  options: {
+                    redirectTo: window.location.origin,
+                    skipBrowserRedirect: true,
+                  },
+                });
+
+                if (error) {
+                  toast.error(error.message);
+                  return;
+                }
+
+                if (data?.url) {
+                  const oauthUrl = new URL(data.url);
+                  const allowedHosts = [
+                    "accounts.google.com",
+                    "cixueqakrifozagnqazw.supabase.co"
+                  ];
+                  if (!allowedHosts.some((host) => oauthUrl.hostname === host)) {
+                    toast.error("Invalid OAuth redirect URL");
+                    return;
+                  }
+                  window.location.href = data.url;
+                }
+              } else {
+                const { error } = await lovable.auth.signInWithOAuth('google', {
+                  redirect_uri: window.location.origin,
+                });
+                if (error) toast.error(String(error));
+              }
             }}
             className="w-full flex items-center justify-center gap-2 bg-secondary text-secondary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
           >
