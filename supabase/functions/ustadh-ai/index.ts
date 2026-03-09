@@ -89,6 +89,60 @@ const fetchWebContext = async (query: string) => {
   }
 };
 
+const ISLAM_KEYWORDS = [
+  "islam",
+  "muslim",
+  "allah",
+  "quran",
+  "koran",
+  "hadith",
+  "sunnah",
+  "fiqh",
+  "aqeedah",
+  "aqidah",
+  "tafsir",
+  "seerah",
+  "sira",
+  "prophet",
+  "muhammad",
+  "rasul",
+  "salah",
+  "salat",
+  "prayer",
+  "wudu",
+  "wudhu",
+  "ghusl",
+  "zakat",
+  "zakah",
+  "sawm",
+  "fasting",
+  "ramadan",
+  "hajj",
+  "umrah",
+  "eid",
+  "jumuah",
+  "jummah",
+  "dua",
+  "dhikr",
+  "halal",
+  "haram",
+  "nikah",
+  "talaq",
+  "sharia",
+  "shari'ah",
+];
+
+const isIslamicQuestion = (text: string) => {
+  const cleaned = String(text || "")
+    .replace(/\[Attached images:[^\]]+\]/gi, "")
+    .toLowerCase()
+    .trim();
+
+  if (!cleaned) return false;
+  return ISLAM_KEYWORDS.some((k) => cleaned.includes(k));
+};
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
