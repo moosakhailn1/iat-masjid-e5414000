@@ -25,7 +25,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const { priceId } = await req.json();
+    const { priceId, returnOrigin } = await req.json();
     if (!priceId) throw new Error("Missing priceId");
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -42,15 +42,8 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    // Determine redirect origin: prefer the request origin, fall back to Netlify
-    const allowedOrigins = [
-      "https://iatlibrary.netlify.app",
-      "https://iat-masjid.lovable.app",
-    ];
-    const requestOrigin = req.headers.get("origin") || "";
-    const redirectBase = allowedOrigins.includes(requestOrigin)
-      ? requestOrigin
-      : "https://iatlibrary.netlify.app";
+    // Use the origin sent from the frontend (works in iframes too)
+    const redirectBase = returnOrigin || req.headers.get("origin") || "https://iatlibrary.netlify.app";
 
     const successUrl = `${redirectBase}/?checkout=success`;
     const cancelUrl = `${redirectBase}/?checkout=cancel`;
