@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 
 const corsHeaders = {
@@ -14,13 +14,31 @@ const PLAN_LIMITS: Record<string, number> = {
   "Imam AI": 999999,
 };
 
+const log = (step: string, details?: any) => {
+  console.log(`[SYNC] ${step}`, details ? JSON.stringify(details) : "");
+};
+
 const planFromProductName = (name: string | null | undefined) => {
   const normalized = (name || "").toLowerCase();
+  log("planFromProductName checking", { name, normalized });
   if (normalized.includes("imam")) return "Imam AI";
   if (normalized.includes("scholar")) return "Scholar AI";
   if (normalized.includes("student")) return "Student AI";
   if (normalized.includes("seeker")) return "Seeker AI";
   return null;
+};
+
+const planFromPriceId = async (stripe: any, priceId: string) => {
+  try {
+    const price = await stripe.prices.retrieve(priceId, { expand: ["product"] });
+    const product = price.product;
+    const productName = typeof product === "string" ? "" : product?.name;
+    log("planFromPriceId", { priceId, productName });
+    return planFromProductName(productName);
+  } catch (e) {
+    log("planFromPriceId error", { priceId, error: String(e) });
+    return null;
+  }
 };
 
 const oneTimeExpiryFromProductName = (name: string | null | undefined) => {
@@ -40,6 +58,8 @@ serve(async (req) => {
   }
 
   try {
+    log("Function started");
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY")!;
@@ -47,9 +67,11 @@ serve(async (req) => {
     if (!supabaseUrl || !serviceRoleKey || !stripeKey) {
       throw new Error("Missing required backend secrets");
     }
+    log("Secrets verified");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      log("No auth header");
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,6 +83,7 @@ serve(async (req) => {
 
     const { data: userData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !userData.user?.email) {
+      log("Auth failed", { error: authError?.message });
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -68,41 +91,66 @@ serve(async (req) => {
     }
 
     const user = userData.user;
+    log("User authenticated", { email: user.email, id: user.id });
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    const normalizedEmail = user.email.trim().toLowerCase();
+    const normalizedEmail = user.email!.trim().toLowerCase();
+
+    // Also load our payment_links table to map price IDs to plans
+    const { data: paymentLinksData } = await supabase.from("payment_links").select("*");
+    const priceIdToPlan: Record<string, string> = {};
+    (paymentLinksData || []).forEach((row: any) => {
+      if (row.monthly_price_id) priceIdToPlan[row.monthly_price_id] = row.plan;
+      if (row.yearly_price_id) priceIdToPlan[row.yearly_price_id] = row.plan;
+    });
+    log("Price ID map from DB", priceIdToPlan);
+
     const customers = await stripe.customers.list({ email: normalizedEmail, limit: 1 });
+    log("Stripe customers found", { count: customers.data.length });
 
     let targetPlan: string | null = null;
     let expiresAt: string | null = null;
 
     if (customers.data.length > 0) {
       const customer = customers.data[0];
+      log("Checking customer", { customerId: customer.id });
 
+      // Check active subscriptions
       const subscriptions = await stripe.subscriptions.list({
         customer: customer.id,
         status: "active",
         limit: 10,
         expand: ["data.items.data.price.product"],
       });
+      log("Active subscriptions", { count: subscriptions.data.length });
 
       if (subscriptions.data.length > 0) {
-        const latestSub = subscriptions.data.sort((a, b) => b.created - a.created)[0];
+        const latestSub = subscriptions.data.sort((a: any, b: any) => b.created - a.created)[0];
+        const priceId = latestSub.items.data[0]?.price?.id;
         const product = latestSub.items.data[0]?.price?.product;
-        const productName = typeof product === "string" ? "" : product?.name;
-        targetPlan = planFromProductName(productName);
+        const productName = typeof product === "string" ? "" : (product as any)?.name;
+        log("Latest subscription", { priceId, productName });
+
+        // Try price ID map first, then product name
+        targetPlan = priceIdToPlan[priceId] || planFromProductName(productName);
         expiresAt = new Date(latestSub.current_period_end * 1000).toISOString();
+        log("From subscription", { targetPlan, expiresAt });
       }
 
+      // Check completed checkout sessions (one-time payments)
       if (!targetPlan) {
+        log("Checking checkout sessions for customer");
         const sessions = await stripe.checkout.sessions.list({
           customer: customer.id,
           limit: 20,
         });
 
         const completedSessions = sessions.data
-          .filter((s) => s.status === "complete" && ["paid", "no_payment_required"].includes(s.payment_status || ""))
-          .sort((a, b) => b.created - a.created);
+          .filter((s: any) => s.status === "complete" && ["paid", "no_payment_required"].includes(s.payment_status || ""))
+          .sort((a: any, b: any) => b.created - a.created);
+
+        log("Completed sessions for customer", { count: completedSessions.length });
 
         for (const session of completedSessions) {
           const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
@@ -110,48 +158,57 @@ serve(async (req) => {
           });
 
           const lineItem = fullSession.line_items?.data?.[0];
+          const priceId = lineItem?.price?.id || "";
           const product = lineItem?.price?.product;
-          const productName = typeof product === "string" ? "" : product?.name;
-          const mapped = planFromProductName(productName);
+          const productName = typeof product === "string" ? "" : (product as any)?.name;
+          log("Session line item", { sessionId: session.id, priceId, productName });
 
+          // Try price ID map first, then product name
+          const mapped = priceIdToPlan[priceId] || planFromProductName(productName);
           if (mapped) {
             targetPlan = mapped;
             expiresAt = oneTimeExpiryFromProductName(productName);
+            log("Matched from session", { targetPlan, expiresAt });
             break;
           }
         }
       }
     }
 
-    // Fallback: guest checkout without Stripe customer attached
+    // Fallback: check all recent sessions by email
     if (!targetPlan) {
+      log("Fallback: checking all sessions by email");
       const sessions = await stripe.checkout.sessions.list({ limit: 100 });
       const completedSessions = sessions.data
-        .filter((s) => s.status === "complete" && ["paid", "no_payment_required"].includes(s.payment_status || ""))
-        .sort((a, b) => b.created - a.created);
+        .filter((s: any) => s.status === "complete" && ["paid", "no_payment_required"].includes(s.payment_status || ""))
+        .sort((a: any, b: any) => b.created - a.created);
 
       for (const session of completedSessions) {
         const sessionEmail = session.customer_details?.email?.trim().toLowerCase();
         if (!sessionEmail || sessionEmail !== normalizedEmail) continue;
 
+        log("Found session by email", { sessionId: session.id });
         const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
           expand: ["line_items.data.price.product"],
         });
 
         const lineItem = fullSession.line_items?.data?.[0];
+        const priceId = lineItem?.price?.id || "";
         const product = lineItem?.price?.product;
-        const productName = typeof product === "string" ? "" : product?.name;
-        const mapped = planFromProductName(productName);
+        const productName = typeof product === "string" ? "" : (product as any)?.name;
 
+        const mapped = priceIdToPlan[priceId] || planFromProductName(productName);
         if (mapped) {
           targetPlan = mapped;
           expiresAt = oneTimeExpiryFromProductName(productName);
+          log("Matched from fallback", { targetPlan, expiresAt });
           break;
         }
       }
     }
 
     if (!targetPlan) {
+      log("No paid plan found");
       return new Response(JSON.stringify({ synced: false, reason: "no_paid_plan_found" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -164,12 +221,9 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Do not override admin-granted free memberships.
     if (existingSub?.is_free_grant) {
-      return new Response(JSON.stringify({
-        synced: false,
-        reason: "skipped_free_grant",
-      }), {
+      log("Skipping - user has free grant");
+      return new Response(JSON.stringify({ synced: false, reason: "skipped_free_grant" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -185,18 +239,23 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
 
+    log("Updating subscription", { existingId: existingSub?.id, payload });
+
     if (existingSub?.id) {
-      await supabase.from("user_subscriptions").update(payload).eq("id", existingSub.id);
+      const { error } = await supabase.from("user_subscriptions").update(payload).eq("id", existingSub.id);
+      if (error) log("Update error", { error: error.message });
     } else {
-      await supabase.from("user_subscriptions").insert({ user_id: user.id, ...payload });
+      const { error } = await supabase.from("user_subscriptions").insert({ user_id: user.id, ...payload });
+      if (error) log("Insert error", { error: error.message });
     }
 
+    log("Sync complete", { plan: targetPlan });
     return new Response(JSON.stringify({ synced: true, plan: targetPlan, expires_at: expiresAt }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("sync-subscription error:", e);
+    log("FATAL ERROR", { error: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : "" });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
