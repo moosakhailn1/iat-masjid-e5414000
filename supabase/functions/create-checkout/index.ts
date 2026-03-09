@@ -25,7 +25,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const { priceId, returnOrigin } = await req.json();
+    const { priceId, returnUrl, returnOrigin } = await req.json();
     if (!priceId) throw new Error("Missing priceId");
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -42,11 +42,15 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    // Use the origin sent from the frontend (works in iframes too)
-    const redirectBase = returnOrigin || req.headers.get("origin") || "https://iatlibrary.netlify.app";
+    // Use the full return URL from the frontend (supports iframe embedding)
+    // Strip any existing query params and append checkout status
+    let baseUrl = returnUrl || returnOrigin || req.headers.get("origin") || "https://iatlibrary.netlify.app";
+    // Remove trailing slash and any existing query string for clean append
+    baseUrl = baseUrl.replace(/\/?\??$/, '');
+    const separator = baseUrl.includes('?') ? '&' : '?';
 
-    const successUrl = `${redirectBase}/?checkout=success`;
-    const cancelUrl = `${redirectBase}/?checkout=cancel`;
+    const successUrl = `${baseUrl}${separator}checkout=success`;
+    const cancelUrl = `${baseUrl}${separator}checkout=cancel`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
