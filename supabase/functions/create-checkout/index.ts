@@ -42,9 +42,18 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    // Always redirect to the Netlify production domain
-    const successUrl = "https://iat-masjid.lovable.app/?checkout=success";
-    const cancelUrl = "https://iat-masjid.lovable.app/?checkout=cancel";
+    // Determine redirect origin: prefer the request origin, fall back to Netlify
+    const allowedOrigins = [
+      "https://iatlibrary.netlify.app",
+      "https://iat-masjid.lovable.app",
+    ];
+    const requestOrigin = req.headers.get("origin") || "";
+    const redirectBase = allowedOrigins.includes(requestOrigin)
+      ? requestOrigin
+      : "https://iatlibrary.netlify.app";
+
+    const successUrl = `${redirectBase}/?checkout=success`;
+    const cancelUrl = `${redirectBase}/?checkout=cancel`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,

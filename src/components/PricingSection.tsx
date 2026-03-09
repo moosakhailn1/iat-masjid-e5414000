@@ -211,7 +211,8 @@ const PricingSection = () => {
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, '_blank');
+        // Use _top so it works even when embedded in an iframe
+        window.open(data.url, '_top');
       } else {
         throw new Error('No checkout URL returned');
       }
