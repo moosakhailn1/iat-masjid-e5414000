@@ -4,6 +4,14 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
+const isInIframe = () => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+};
+
 const AuthPage = () => {
   const { user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
@@ -17,6 +25,19 @@ const AuthPage = () => {
   useEffect(() => {
     if (user) navigate('/');
   }, [user, navigate]);
+
+  // Handle popup completion (Lovable preview runs inside an iframe)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'oauth-complete') {
+        toast.success('Signed in!');
+        navigate('/');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,12 +71,50 @@ const AuthPage = () => {
   };
 
   const handleForgotPassword = async () => {
-    if (!email) { toast.error('Enter your email first'); return; }
+    if (!email) {
+      toast.error('Enter your email first');
+      return;
+    }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) toast.error(error.message);
     else toast.success('Password reset email sent!');
+  };
+
+  const handleGoogle = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    if (!data?.url) {
+      toast.error('Could not start Google sign-in');
+      return;
+    }
+
+    const oauthUrl = new URL(data.url);
+    const allowedHosts = ['accounts.google.com', 'cixueqakrifozagnqazw.supabase.co'];
+    if (!allowedHosts.some((host) => oauthUrl.hostname === host)) {
+      toast.error('Invalid OAuth redirect URL');
+      return;
+    }
+
+    if (isInIframe()) {
+      const popup = window.open(data.url, 'oauth', 'width=520,height=640');
+      if (!popup) toast.error('Popup blocked — please allow popups and try again.');
+      return;
+    }
+
+    window.location.href = data.url;
   };
 
   return (
@@ -138,33 +197,7 @@ const AuthPage = () => {
 
           <button
             type="button"
-            onClick={async () => {
-              const { data, error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  redirectTo: window.location.origin,
-                  skipBrowserRedirect: true,
-                },
-              });
-
-              if (error) {
-                toast.error(error.message);
-                return;
-              }
-
-              if (data?.url) {
-                const oauthUrl = new URL(data.url);
-                const allowedHosts = [
-                  'accounts.google.com',
-                  'cixueqakrifozagnqazw.supabase.co',
-                ];
-                if (!allowedHosts.some((host) => oauthUrl.hostname === host)) {
-                  toast.error('Invalid OAuth redirect URL');
-                  return;
-                }
-                window.location.href = data.url;
-              }
-            }}
+            onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-2 bg-secondary text-secondary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
@@ -177,3 +210,4 @@ const AuthPage = () => {
 };
 
 export default AuthPage;
+

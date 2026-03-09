@@ -169,6 +169,19 @@ serve(async (req) => {
       : [];
 
     const lastUserMessage = [...messages].reverse().find((m: any) => m?.role === "user")?.content ?? "";
+
+    if (attachments.length === 0 && !isIslamicQuestion(String(lastUserMessage))) {
+      const refusal =
+        "Bismillah.\n\nI can only help with Islam-related questions (Quran, authentic Hadith, and mainstream scholarly guidance). Please ask an Islam-related question, and I’ll help insha’Allah.";
+      const sse =
+        `data: ${JSON.stringify({ choices: [{ delta: { content: refusal } }] })}\n\n` +
+        "data: [DONE]\n\n";
+
+      return new Response(sse, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
     const webContext = webSearchEnabled ? await fetchWebContext(String(lastUserMessage)) : "";
 
     const modelMessages = messages.map((m: any, idx: number) => {
