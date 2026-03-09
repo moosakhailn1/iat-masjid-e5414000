@@ -193,23 +193,23 @@ const PricingSection = () => {
     const fallbackUrl = window.location.href;
     const params = new URLSearchParams(window.location.search);
 
-    // Best option: parent explicitly passes full page URL in iframe src
-    // Example: .../app?parent_url=https%3A%2F%2Fexample.com%2Fpricing
-    const parentUrlParam = params.get('parent_url');
-    if (parentUrlParam) {
+    const isValidHttpUrl = (value: string) => {
       try {
-        const decoded = decodeURIComponent(parentUrlParam);
-        const parsed = new URL(decoded);
-        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-          return parsed.toString();
-        }
+        const parsed = new URL(value);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
       } catch {
-        // ignore invalid parent_url param
+        return false;
       }
+    };
+
+    // Preferred: explicit full parent page URL from iframe src
+    const parentUrlParam = params.get('parent_url') || params.get('return_url');
+    if (parentUrlParam && isValidHttpUrl(parentUrlParam)) {
+      return parentUrlParam;
     }
 
-    // If embedded in an iframe, try referrer (may be origin-only based on browser policy)
-    if (window.self !== window.top && document.referrer) {
+    // Fallback: referrer (may be origin-only depending on browser policy)
+    if (window.self !== window.top && document.referrer && isValidHttpUrl(document.referrer)) {
       return document.referrer;
     }
 
