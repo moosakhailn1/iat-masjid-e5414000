@@ -18,6 +18,10 @@ Your role:
 - Keep answers clear, educational, and well-structured
 - Never issue fatwas (religious rulings); instead share scholarly perspectives
 
+Scope rule (STRICT):
+- Only answer Islam-related questions (Quran, Hadith, Fiqh, Aqeedah, Seerah, worship, halal/haram, Islamic manners).
+- If the user asks a non-Islamic question (e.g., tech, math, general life advice, politics, entertainment), politely refuse and ask them to rephrase as an Islam-related question.
+
 You speak with warmth and wisdom. Format responses with markdown for readability.`;
 
 type Plan = "free" | "Seeker AI" | "Student AI" | "Scholar AI" | "Imam AI";
@@ -85,6 +89,60 @@ const fetchWebContext = async (query: string) => {
   }
 };
 
+const ISLAM_KEYWORDS = [
+  "islam",
+  "muslim",
+  "allah",
+  "quran",
+  "koran",
+  "hadith",
+  "sunnah",
+  "fiqh",
+  "aqeedah",
+  "aqidah",
+  "tafsir",
+  "seerah",
+  "sira",
+  "prophet",
+  "muhammad",
+  "rasul",
+  "salah",
+  "salat",
+  "prayer",
+  "wudu",
+  "wudhu",
+  "ghusl",
+  "zakat",
+  "zakah",
+  "sawm",
+  "fasting",
+  "ramadan",
+  "hajj",
+  "umrah",
+  "eid",
+  "jumuah",
+  "jummah",
+  "dua",
+  "dhikr",
+  "halal",
+  "haram",
+  "nikah",
+  "talaq",
+  "sharia",
+  "shari'ah",
+];
+
+const isIslamicQuestion = (text: string) => {
+  const cleaned = String(text || "")
+    .replace(/\[Attached images:[^\]]+\]/gi, "")
+    .toLowerCase()
+    .trim();
+
+  if (!cleaned) return false;
+  return ISLAM_KEYWORDS.some((k) => cleaned.includes(k));
+};
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -111,6 +169,19 @@ serve(async (req) => {
       : [];
 
     const lastUserMessage = [...messages].reverse().find((m: any) => m?.role === "user")?.content ?? "";
+
+    if (attachments.length === 0 && !isIslamicQuestion(String(lastUserMessage))) {
+      const refusal =
+        "Bismillah.\n\nI can only help with Islam-related questions (Quran, authentic Hadith, and mainstream scholarly guidance). Please ask an Islam-related question, and I’ll help insha’Allah.";
+      const sse =
+        `data: ${JSON.stringify({ choices: [{ delta: { content: refusal } }] })}\n\n` +
+        "data: [DONE]\n\n";
+
+      return new Response(sse, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
     const webContext = webSearchEnabled ? await fetchWebContext(String(lastUserMessage)) : "";
 
     const modelMessages = messages.map((m: any, idx: number) => {
