@@ -213,6 +213,12 @@ const PricingSection = () => {
       return document.referrer;
     }
 
+    // If inside an iframe and no explicit URL found, redirect back to /islam/ folder
+    if (window.self !== window.top) {
+      const origin = window.location.origin;
+      return `${origin}/islam/`;
+    }
+
     return fallbackUrl;
   };
 
