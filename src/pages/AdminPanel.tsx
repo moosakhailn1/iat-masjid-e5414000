@@ -54,14 +54,16 @@ const AdminPanel = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, discountsRes, subsRes, linksRes, contentRes] = await Promise.all([
+    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes] = await Promise.all([
       supabase.from('profiles').select('*'),
       supabase.from('discount_codes').select('*').order('created_at', { ascending: false }),
       supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false }),
       supabase.from('payment_links').select('*'),
       supabase.from('library_content').select('*').order('created_at', { ascending: false }),
+      supabase.functions.invoke('admin-users', { body: { action: 'list_roles' } }),
     ]);
     setUsers(profilesRes.data || []);
+    setUserRoles(rolesRes.data?.roles || []);
     setDiscounts(discountsRes.data || []);
     setSubscriptions(subsRes.data || []);
     const links = linksRes.data || [];
