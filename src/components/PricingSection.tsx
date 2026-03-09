@@ -206,7 +206,7 @@ const PricingSection = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId },
+        body: { priceId, returnOrigin: window.location.origin },
       });
 
       if (error) throw error;
