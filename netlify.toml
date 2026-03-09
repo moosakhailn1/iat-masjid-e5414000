@@ -1,0 +1,11 @@
+# Netlify configuration
+# Ensures SPA routes (including OAuth return paths) are served by index.html
+
+[build]
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
