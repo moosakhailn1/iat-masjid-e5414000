@@ -217,8 +217,8 @@ const PricingSection = () => {
 
       if (error) throw error;
       if (data?.url) {
-        // Open in a new tab so the parent iframe host is preserved
-        window.open(data.url, '_blank');
+        // Navigate in the same tab (no iframe-specific behavior)
+        window.location.assign(data.url);
       } else {
         throw new Error('No checkout URL returned');
       }
