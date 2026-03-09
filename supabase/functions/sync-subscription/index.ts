@@ -111,6 +111,9 @@ serve(async (req) => {
 
     let targetPlan: string | null = null;
     let expiresAt: string | null = null;
+    // Unix seconds from Stripe indicating when we last saw a paid purchase/subscription
+    // Used to decide whether to override an admin-managed (is_free_grant) plan.
+    let evidenceCreated: number | null = null;
 
     if (customers.data.length > 0) {
       const customer = customers.data[0];
@@ -135,7 +138,8 @@ serve(async (req) => {
         // Try price ID map first, then product name
         targetPlan = priceIdToPlan[priceId] || planFromProductName(productName);
         expiresAt = new Date(latestSub.current_period_end * 1000).toISOString();
-        log("From subscription", { targetPlan, expiresAt });
+        evidenceCreated = typeof latestSub.created === "number" ? latestSub.created : null;
+        log("From subscription", { targetPlan, expiresAt, evidenceCreated });
       }
 
       // Check completed checkout sessions (one-time payments)
@@ -168,7 +172,13 @@ serve(async (req) => {
           if (mapped) {
             targetPlan = mapped;
             expiresAt = oneTimeExpiryFromProductName(productName);
-            log("Matched from session", { targetPlan, expiresAt });
+            evidenceCreated =
+              typeof (fullSession as any).created === "number"
+                ? (fullSession as any).created
+                : typeof (session as any).created === "number"
+                  ? (session as any).created
+                  : null;
+            log("Matched from session", { targetPlan, expiresAt, evidenceCreated });
             break;
           }
         }
@@ -201,7 +211,13 @@ serve(async (req) => {
         if (mapped) {
           targetPlan = mapped;
           expiresAt = oneTimeExpiryFromProductName(productName);
-          log("Matched from fallback", { targetPlan, expiresAt });
+          evidenceCreated =
+            typeof (fullSession as any).created === "number"
+              ? (fullSession as any).created
+              : typeof (session as any).created === "number"
+                ? (session as any).created
+                : null;
+          log("Matched from fallback", { targetPlan, expiresAt, evidenceCreated });
           break;
         }
       }
@@ -217,16 +233,36 @@ serve(async (req) => {
 
     const { data: existingSub } = await supabase
       .from("user_subscriptions")
-      .select("id, is_free_grant, plan")
+      .select("id, is_free_grant, plan, updated_at")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Skip sync entirely if admin has manually set this user's plan (gifted or reset)
+    // If admin has manually set/reset a plan, only override it when Stripe evidence is NEWER
+    // than the admin action (enables "reset to free" + rebuy).
     if (existingSub?.is_free_grant) {
-      log("Skipping - user has admin-managed plan", { plan: existingSub.plan });
-      return new Response(JSON.stringify({ synced: false, reason: "skipped_admin_managed" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const adminUpdatedAtSeconds = existingSub.updated_at
+        ? Math.floor(new Date(existingSub.updated_at).getTime() / 1000)
+        : null;
+
+      const shouldOverride =
+        typeof evidenceCreated === "number" && typeof adminUpdatedAtSeconds === "number" && evidenceCreated > adminUpdatedAtSeconds;
+
+      if (!shouldOverride) {
+        log("Skipping - user has admin-managed plan", {
+          plan: existingSub.plan,
+          adminUpdatedAtSeconds,
+          evidenceCreated,
+        });
+        return new Response(JSON.stringify({ synced: false, reason: "skipped_admin_managed" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      log("Override admin-managed plan due to newer Stripe purchase", {
+        plan: existingSub.plan,
+        adminUpdatedAtSeconds,
+        evidenceCreated,
       });
     }
 
