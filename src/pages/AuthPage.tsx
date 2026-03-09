@@ -28,28 +28,16 @@ const AuthPage = () => {
 
   // Handle popup completion (Lovable preview runs inside an iframe)
   useEffect(() => {
-    const handler = async (event: MessageEvent) => {
+    const handler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      if (event.data?.type !== 'oauth-complete') return;
-
-      const access_token = event.data?.session?.access_token as string | undefined;
-      const refresh_token = event.data?.session?.refresh_token as string | undefined;
-
-      if (!access_token || !refresh_token) return;
-
-      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (error) {
-        toast.error(error.message);
-        return;
+      if (event.data?.type === 'oauth-complete') {
+        toast.success('Signed in!');
+        navigate('/');
       }
-
-      // AuthProvider will pick up the new session and redirect via the user effect.
-      toast.success('Signed in!');
     };
-
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
