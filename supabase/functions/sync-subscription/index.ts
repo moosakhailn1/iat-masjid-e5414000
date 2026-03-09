@@ -217,13 +217,15 @@ serve(async (req) => {
 
     const { data: existingSub } = await supabase
       .from("user_subscriptions")
-      .select("id, is_free_grant")
+      .select("id, is_free_grant, plan")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (existingSub?.is_free_grant) {
-      log("Skipping - user has free grant");
-      return new Response(JSON.stringify({ synced: false, reason: "skipped_free_grant" }), {
+    // Keep gifted/locked *paid* plans from being overwritten by old Stripe sessions,
+    // but do NOT block upgrades when the user is currently on the free plan.
+    if (existingSub?.is_free_grant && (existingSub.plan || "free") !== "free") {
+      log("Skipping - user has free-grant paid plan", { plan: existingSub.plan });
+      return new Response(JSON.stringify({ synced: false, reason: "skipped_free_grant_paid_plan" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
