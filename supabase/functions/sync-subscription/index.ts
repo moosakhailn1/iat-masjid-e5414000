@@ -221,11 +221,10 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Keep gifted/locked *paid* plans from being overwritten by old Stripe sessions,
-    // but do NOT block upgrades when the user is currently on the free plan.
-    if (existingSub?.is_free_grant && (existingSub.plan || "free") !== "free") {
-      log("Skipping - user has free-grant paid plan", { plan: existingSub.plan });
-      return new Response(JSON.stringify({ synced: false, reason: "skipped_free_grant_paid_plan" }), {
+    // Skip sync entirely if admin has manually set this user's plan (gifted or reset)
+    if (existingSub?.is_free_grant) {
+      log("Skipping - user has admin-managed plan", { plan: existingSub.plan });
+      return new Response(JSON.stringify({ synced: false, reason: "skipped_admin_managed" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
