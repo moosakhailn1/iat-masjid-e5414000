@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import LibrarySection from '@/components/LibrarySection';
 import UstadhAI from '@/components/UstadhAI';
@@ -11,14 +13,16 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>('library');
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         {activeTab === 'library' && <LibrarySection />}
         {activeTab === 'ai' && <UstadhAI />}
         {activeTab === 'favorites' && <FavoritesSection />}
         {activeTab === 'pricing' && <PricingSection />}
       </main>
+      <Footer />
     </div>
   );
 };
