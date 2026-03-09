@@ -13,8 +13,11 @@ const AdminPanel = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content'>('users');
   const [users, setUsers] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [passwordModal, setPasswordModal] = useState<{ userId: string; email: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
   const [libraryContent, setLibraryContent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
