@@ -190,18 +190,27 @@ const PricingSection = () => {
   };
 
   const getCheckoutReturnUrl = () => {
-    const fallbackUrl = window.location.href.split('?')[0];
+    const fallbackUrl = window.location.href;
+    const params = new URLSearchParams(window.location.search);
 
-    // If embedded in an iframe, prefer the embedding page's full URL
-    if (window.self !== window.top) {
-      if (document.referrer) {
-        try {
-          // referrer gives the full URL of the parent page
-          return document.referrer;
-        } catch {
-          // ignore and fall back
+    // Best option: parent explicitly passes full page URL in iframe src
+    // Example: .../app?parent_url=https%3A%2F%2Fexample.com%2Fpricing
+    const parentUrlParam = params.get('parent_url');
+    if (parentUrlParam) {
+      try {
+        const decoded = decodeURIComponent(parentUrlParam);
+        const parsed = new URL(decoded);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          return parsed.toString();
         }
+      } catch {
+        // ignore invalid parent_url param
       }
+    }
+
+    // If embedded in an iframe, try referrer (may be origin-only based on browser policy)
+    if (window.self !== window.top && document.referrer) {
+      return document.referrer;
     }
 
     return fallbackUrl;
