@@ -189,25 +189,22 @@ const PricingSection = () => {
     return +(price * (1 - pct / 100)).toFixed(2);
   };
 
-  const getCheckoutReturnOrigin = () => {
-    const fallbackOrigin = window.location.origin;
+  const getCheckoutReturnUrl = () => {
+    const fallbackUrl = window.location.href.split('?')[0];
 
-    // If embedded in an iframe, prefer the embedding page origin
+    // If embedded in an iframe, prefer the embedding page's full URL
     if (window.self !== window.top) {
       if (document.referrer) {
         try {
-          return new URL(document.referrer).origin;
+          // referrer gives the full URL of the parent page
+          return document.referrer;
         } catch {
           // ignore and fall back
         }
       }
-
-      // Some browsers expose ancestor origins directly
-      const ancestorOrigin = window.location.ancestorOrigins?.[0];
-      if (ancestorOrigin) return ancestorOrigin;
     }
 
-    return fallbackOrigin;
+    return fallbackUrl;
   };
 
   const handleSubscribe = async (plan: typeof plans[0]) => {
@@ -223,12 +220,12 @@ const PricingSection = () => {
     }
 
     const priceId = isYearly ? prices.yearly : prices.monthly;
-    const returnOrigin = getCheckoutReturnOrigin();
+    const returnUrl = getCheckoutReturnUrl();
     setCheckoutLoading(plan.name);
 
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId, returnOrigin },
+        body: { priceId, returnUrl },
       });
 
       if (error) throw error;
