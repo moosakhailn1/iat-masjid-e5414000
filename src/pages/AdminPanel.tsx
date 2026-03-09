@@ -208,8 +208,8 @@ const AdminPanel = () => {
     const { error } = await supabase.from('user_subscriptions').update({
       plan: 'free',
       daily_limit: 15,
-      // Reset should not "lock" the user from later paid upgrades.
-      is_free_grant: false,
+      // Lock as admin-granted so sync doesn't overwrite with old Stripe data
+      is_free_grant: true,
       discount_percent: 0,
       granted_by: user!.id,
       expires_at: null,
