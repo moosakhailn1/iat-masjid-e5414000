@@ -42,15 +42,17 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    const origin = req.headers.get("origin") || "https://digital-masjid-ai.lovable.app";
+    // Always redirect to the Netlify production domain
+    const successUrl = "https://iat-masjid.lovable.app/?checkout=success";
+    const cancelUrl = "https://iat-masjid.lovable.app/?checkout=cancel";
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
-      success_url: `${origin}/?checkout=success`,
-      cancel_url: `${origin}/?checkout=cancel`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: { user_id: user.id },
     });
 
