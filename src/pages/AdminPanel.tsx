@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff, Settings } from 'lucide-react';
+import SiteSettingsEditor from '@/components/admin/SiteSettingsEditor';
 import { useNavigate } from 'react-router-dom';
 
 const PLANS = ['Seeker AI', 'Student AI', 'Scholar AI', 'Imam AI'];
