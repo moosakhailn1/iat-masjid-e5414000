@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff, Settings } from 'lucide-react';
+import SiteSettingsEditor from '@/components/admin/SiteSettingsEditor';
 import { useNavigate } from 'react-router-dom';
 
 const PLANS = ['Seeker AI', 'Student AI', 'Scholar AI', 'Imam AI'];
@@ -11,7 +12,7 @@ const CONTENT_TYPES = ['hadith', 'dua', 'khutbah', 'seerah'] as const;
 const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content'>('users');
+  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content' | 'site'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -322,6 +323,7 @@ const AdminPanel = () => {
             { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
             { id: 'grants' as const, label: 'Free Grants', icon: Gift },
             { id: 'content' as const, label: 'Library Content', icon: BookOpen },
+            { id: 'site' as const, label: 'Site Settings', icon: Settings },
           ]).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -850,6 +852,9 @@ const AdminPanel = () => {
                 </div>
               </div>
             )}
+
+            {/* Site Settings Tab */}
+            {tab === 'site' && <SiteSettingsEditor />}
           </>
         )}
       </div>
