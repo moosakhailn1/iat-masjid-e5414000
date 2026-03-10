@@ -12,7 +12,7 @@ const CONTENT_TYPES = ['hadith', 'dua', 'khutbah', 'seerah'] as const;
 const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content'>('users');
+  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content' | 'site'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
