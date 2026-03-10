@@ -126,7 +126,7 @@ export function useSiteSettingsDraft() {
   const saveDraft = async (key: 'navbar' | 'footer', value: NavbarSettings | FooterSettings) => {
     const { error } = await supabase
       .from('site_settings')
-      .update({ draft_value: value as unknown as Record<string, unknown>, updated_at: new Date().toISOString() })
+      .update({ draft_value: JSON.parse(JSON.stringify(value)), updated_at: new Date().toISOString() })
       .eq('key', key);
     return error;
   };
