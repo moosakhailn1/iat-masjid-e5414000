@@ -323,6 +323,7 @@ const AdminPanel = () => {
             { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
             { id: 'grants' as const, label: 'Free Grants', icon: Gift },
             { id: 'content' as const, label: 'Library Content', icon: BookOpen },
+            { id: 'site' as const, label: 'Site Settings', icon: Settings },
           ]).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
