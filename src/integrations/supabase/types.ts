@@ -203,6 +203,33 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings: {
+        Row: {
+          draft_value: Json
+          id: string
+          key: string
+          published_value: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          draft_value?: Json
+          id?: string
+          key: string
+          published_value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          draft_value?: Json
+          id?: string
+          key?: string
+          published_value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
