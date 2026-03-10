@@ -852,6 +852,9 @@ const AdminPanel = () => {
                 </div>
               </div>
             )}
+
+            {/* Site Settings Tab */}
+            {tab === 'site' && <SiteSettingsEditor />}
           </>
         )}
       </div>
