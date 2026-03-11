@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_daily_usage: {
+        Row: {
+          count: number
+          id: string
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       discount_codes: {
         Row: {
           code: string
