@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_daily_usage: {
+        Row: {
+          count: number
+          id: string
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       discount_codes: {
         Row: {
           code: string
@@ -299,9 +320,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_dev: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "dev"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -429,7 +451,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "dev"],
     },
   },
 } as const
