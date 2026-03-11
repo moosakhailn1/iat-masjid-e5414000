@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff, Settings } from 'lucide-react';
+import { Shield, Users, Tag, Gift, Trash2, Plus, RefreshCw, CreditCard, BookOpen, Save, Key, UserX, ShieldCheck, ShieldOff, Settings, Code } from 'lucide-react';
 import SiteSettingsEditor from '@/components/admin/SiteSettingsEditor';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +10,7 @@ const PLANS = ['Seeker AI', 'Student AI', 'Scholar AI', 'Imam AI'];
 const CONTENT_TYPES = ['hadith', 'dua', 'khutbah', 'seerah'] as const;
 
 const AdminPanel = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isDev } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content' | 'site'>('users');
   const [users, setUsers] = useState<any[]>([]);
@@ -47,6 +47,11 @@ const AdminPanel = () => {
     occasion: '', imam: '', event_date: '', content_subtype: '', full_text: '',
   });
   const [contentFilter, setContentFilter] = useState<string>('all');
+
+  // Determine which tabs this role can see
+  const availableTabs = isDev
+    ? ['users', 'payments', 'discounts', 'grants', 'content', 'site'] as const
+    : ['users', 'discounts', 'grants', 'content', 'site'] as const;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -91,12 +96,19 @@ const AdminPanel = () => {
         <div className="text-center">
           <Shield size={48} className="mx-auto text-muted-foreground mb-4" />
           <p className="text-foreground font-medium">Access Denied</p>
-          <p className="text-muted-foreground text-sm">You need admin privileges to access this page.</p>
+          <p className="text-muted-foreground text-sm">You need admin or dev privileges to access this page.</p>
           <button onClick={() => navigate('/')} className="mt-4 text-primary hover:underline text-sm">Go Home</button>
         </div>
       </div>
     );
   }
+
+  const getRoleLabel = (userId: string) => {
+    const roles = userRoles.filter(r => r.user_id === userId).map(r => r.role);
+    if (roles.includes('dev')) return { label: 'Dev', color: 'bg-purple-500/20 text-purple-400' };
+    if (roles.includes('admin')) return { label: 'Admin', color: 'bg-primary/20 text-primary' };
+    return { label: 'User', color: 'bg-secondary text-secondary-foreground' };
+  };
 
   const createDiscount = async () => {
     if (!newCode) { toast.error('Enter a code'); return; }
@@ -209,7 +221,6 @@ const AdminPanel = () => {
     const { error } = await supabase.from('user_subscriptions').update({
       plan: 'free',
       daily_limit: 15,
-      // Lock as admin-granted so sync doesn't overwrite with old Stripe data
       is_free_grant: true,
       discount_percent: 0,
       granted_by: user!.id,
@@ -295,15 +306,27 @@ const AdminPanel = () => {
     ? ['Makkah Period', 'Madinah Period', 'Key Battles', 'Treaties & Events', 'Final Years']
     : ['Faith', 'Prayer', 'Fasting', 'Charity', 'Manners', 'Knowledge', 'Patience', 'Gratitude', 'Family', 'Other'];
 
+  const tabConfig = [
+    { id: 'users' as const, label: 'Users', icon: Users },
+    ...(isDev ? [{ id: 'payments' as const, label: 'Payment Links', icon: CreditCard }] : []),
+    { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
+    { id: 'grants' as const, label: 'Free Grants', icon: Gift },
+    { id: 'content' as const, label: 'Library Content', icon: BookOpen },
+    { id: 'site' as const, label: 'Site Settings', icon: Settings },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Shield size={24} className="text-primary" /> Admin Panel
+              {isDev ? <Code size={24} className="text-purple-400" /> : <Shield size={24} className="text-primary" />}
+              {isDev ? 'Dev Panel' : 'Admin Panel'}
             </h1>
-            <p className="text-muted-foreground text-sm">Manage users, payments, discounts, grants, and content</p>
+            <p className="text-muted-foreground text-sm">
+              {isDev ? 'Full access — manage users, payments, discounts, grants, and content' : 'Manage users, discounts, grants, and content'}
+            </p>
           </div>
           <div className="flex gap-2">
             <button onClick={loadData} className="flex items-center gap-1 text-sm bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:bg-muted">
@@ -317,14 +340,7 @@ const AdminPanel = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
-          {([
-            { id: 'users' as const, label: 'Users', icon: Users },
-            { id: 'payments' as const, label: 'Payment Links', icon: CreditCard },
-            { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
-            { id: 'grants' as const, label: 'Free Grants', icon: Gift },
-            { id: 'content' as const, label: 'Library Content', icon: BookOpen },
-            { id: 'site' as const, label: 'Site Settings', icon: Settings },
-          ]).map(({ id, label, icon: Icon }) => (
+          {tabConfig.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -344,7 +360,6 @@ const AdminPanel = () => {
             {/* Users Tab */}
             {tab === 'users' && (
               <div className="space-y-4">
-                {/* Password Reset Modal */}
                 {passwordModal && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm space-y-4">
@@ -394,7 +409,9 @@ const AdminPanel = () => {
                     <tbody>
                       {users.map(u => {
                         const sub = subscriptions.find(s => s.user_id === u.id);
-                        const isUserAdmin = userRoles.some(r => r.user_id === u.id && r.role === 'admin');
+                        const roleInfo = getRoleLabel(u.id);
+                        const isTargetDev = userRoles.some(r => r.user_id === u.id && r.role === 'dev');
+                        const isTargetAdmin = userRoles.some(r => r.user_id === u.id && r.role === 'admin');
                         const isSelf = u.id === user?.id;
 
                         return (
@@ -402,11 +419,7 @@ const AdminPanel = () => {
                             <td className="p-3 text-foreground">{u.display_name || '—'}</td>
                             <td className="p-3 text-foreground text-xs">{u.email}</td>
                             <td className="p-3">
-                              {isUserAdmin ? (
-                                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium">Admin</span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground">User</span>
-                              )}
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleInfo.color}`}>{roleInfo.label}</span>
                             </td>
                             <td className="p-3">
                               <span className={`px-2 py-0.5 rounded-full text-xs ${sub?.is_free_grant ? 'bg-primary/20 text-primary' : 'bg-secondary text-secondary-foreground'}`}>
@@ -416,24 +429,24 @@ const AdminPanel = () => {
                             <td className="p-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
                             <td className="p-3">
                               <div className="flex flex-wrap gap-1">
-                                {/* Toggle admin */}
-                                {!isSelf && (
+                                {/* Toggle admin - only devs can do this */}
+                                {isDev && !isSelf && !isTargetDev && (
                                   <button
                                     onClick={async () => {
-                                      const action = isUserAdmin ? 'remove_role' : 'add_role';
+                                      const action = isTargetAdmin ? 'remove_role' : 'add_role';
                                       const { data, error } = await supabase.functions.invoke('admin-users', {
                                         body: { action, targetUserId: u.id, role: 'admin' },
                                       });
                                       if (error || data?.error) toast.error(data?.error || 'Failed');
-                                      else { toast.success(isUserAdmin ? 'Admin removed' : 'Admin granted'); loadData(); }
+                                      else { toast.success(isTargetAdmin ? 'Admin removed' : 'Admin granted'); loadData(); }
                                     }}
                                     className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-                                      isUserAdmin ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' : 'bg-primary/20 text-primary hover:bg-primary/30'
+                                      isTargetAdmin ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' : 'bg-primary/20 text-primary hover:bg-primary/30'
                                     }`}
-                                    title={isUserAdmin ? 'Remove admin' : 'Make admin'}
+                                    title={isTargetAdmin ? 'Remove admin' : 'Make admin'}
                                   >
-                                    {isUserAdmin ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
-                                    {isUserAdmin ? 'Remove Admin' : 'Make Admin'}
+                                    {isTargetAdmin ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
+                                    {isTargetAdmin ? 'Remove Admin' : 'Make Admin'}
                                   </button>
                                 )}
 
@@ -455,8 +468,8 @@ const AdminPanel = () => {
                                   </button>
                                 )}
 
-                                {/* Delete user */}
-                                {!isSelf && (
+                                {/* Delete user - admins can't delete devs/admins */}
+                                {!isSelf && (isDev || (!isTargetDev && !isTargetAdmin)) && (
                                   <button
                                     onClick={async () => {
                                       if (!confirm(`Delete ${u.email}? This cannot be undone.`)) return;
@@ -483,8 +496,8 @@ const AdminPanel = () => {
               </div>
             )}
 
-            {/* Payment Links Tab */}
-            {tab === 'payments' && (
+            {/* Payment Links Tab - Dev only */}
+            {tab === 'payments' && isDev && (
               <div className="space-y-4">
                 <p className="text-muted-foreground text-sm">
                   Configure Stripe Price IDs and optional Payment Links for each plan.
@@ -698,7 +711,6 @@ const AdminPanel = () => {
                     <BookOpen size={16} className="text-primary" /> Add New Content
                   </h3>
 
-                  {/* Content type selector */}
                   <div className="flex gap-2 mb-4 flex-wrap">
                     {CONTENT_TYPES.map(t => (
                       <button
@@ -809,7 +821,6 @@ const AdminPanel = () => {
                   </button>
                 </div>
 
-                {/* Existing content list */}
                 <div className="bg-card border border-border rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-foreground font-semibold text-sm">Added Content ({filteredContent.length})</h3>

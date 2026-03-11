@@ -4,9 +4,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Price IDs are loaded from the database (payment_links table)
-// Admins can update them in the Admin Panel → Payment Links tab
-
 const plans = [
   {
     name: 'Seeker AI',
@@ -16,6 +13,7 @@ const plans = [
       '50 AI questions/day',
       'Basic Islamic Q&A',
       'Hadith search',
+      'English-only responses',
       'Image uploads (5/day)',
       'Email support',
     ],
@@ -31,6 +29,7 @@ const plans = [
       'Quran tafsir access',
       'Fiqh comparisons',
       'Deep thinking mode',
+      'English + Pashto + Dari translations',
       'Image uploads (25/day)',
       'Web search for sources',
       'Priority support',
@@ -46,9 +45,10 @@ const plans = [
       'Arabic language support',
       'Hadith chain analysis',
       'Deep thinking mode',
+      'All language translations',
+      'Text-to-speech for responses',
       'Web search & citations',
       'File & image uploads (100/day)',
-      'Multi-language translations',
       'Export conversations as PDF',
     ],
   },
@@ -62,9 +62,11 @@ const plans = [
       'Community management',
       'Custom Islamic curriculum',
       'Advanced deep thinking',
+      'All language translations',
+      'Text-to-speech for responses',
+      'Voice conversation with AI',
       'Unlimited web search & citations',
       'Unlimited file & image uploads',
-      'Voice-to-text input',
       'API access for integrations',
       'Dedicated support',
     ],
@@ -100,7 +102,6 @@ const PricingSection = () => {
       setSubLoading(false);
     };
 
-    // Auto-sync from Stripe on load and after returning from checkout
     const syncAndFetch = async () => {
       await supabase.functions.invoke('sync-subscription');
       await fetchSub();
@@ -108,10 +109,8 @@ const PricingSection = () => {
 
     syncAndFetch();
 
-    // Check if returning from checkout
     const params = new URLSearchParams(window.location.search);
     if (params.get('checkout') === 'success') {
-      // Poll sync a few times to catch the payment
       let attempts = 0;
       const pollInterval = setInterval(async () => {
         attempts++;
@@ -120,11 +119,9 @@ const PricingSection = () => {
         if (attempts >= 6) clearInterval(pollInterval);
       }, 5000);
 
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    // Realtime subscription for instant updates (e.g. admin grants)
     const channel = supabase
       .channel(`user_sub:${user.id}`)
       .on('postgres_changes', {
@@ -189,11 +186,6 @@ const PricingSection = () => {
     return +(price * (1 - pct / 100)).toFixed(2);
   };
 
-  const getCheckoutReturnUrl = () => {
-    // Reverted: no iframe-specific behavior (uses the current page URL only)
-    return window.location.href;
-  };
-
   const handleSubscribe = async (plan: typeof plans[0]) => {
     if (!user) {
       toast.info('Please sign in first to subscribe.');
@@ -207,7 +199,7 @@ const PricingSection = () => {
     }
 
     const priceId = isYearly ? prices.yearly : prices.monthly;
-    const returnUrl = getCheckoutReturnUrl();
+    const returnUrl = window.location.href;
     setCheckoutLoading(plan.name);
 
     try {
@@ -217,7 +209,6 @@ const PricingSection = () => {
 
       if (error) throw error;
       if (data?.url) {
-        // Navigate in the same tab (no iframe-specific behavior)
         window.location.assign(data.url);
       } else {
         throw new Error('No checkout URL returned');
@@ -231,7 +222,6 @@ const PricingSection = () => {
 
   return (
     <div className="animate-fade-in">
-      {/* Banner discounts */}
       {bannerDiscounts.map(d => (
         <div key={d.id} className="mb-4 bg-primary/10 border border-primary/30 rounded-xl p-4 text-center">
           <Tag size={16} className="inline mr-2 text-primary" />
@@ -242,7 +232,6 @@ const PricingSection = () => {
         </div>
       ))}
 
-      {/* Current plan badge */}
       {user && !subLoading && (
         <div className="mb-6 text-center">
           <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-5 py-2.5">
@@ -261,7 +250,6 @@ const PricingSection = () => {
           Choose a plan to unlock more AI questions, advanced features, and deeper Islamic scholarship tools.
         </p>
 
-        {/* Billing toggle */}
         <div className="flex items-center justify-center gap-3 mt-6">
           <span className={`text-sm ${!isYearly ? 'text-foreground' : 'text-muted-foreground'}`}>Monthly</span>
           <button
@@ -275,7 +263,6 @@ const PricingSection = () => {
           </span>
         </div>
 
-        {/* Promo code input */}
         <div className="flex items-center justify-center gap-2 mt-4">
           <input
             value={promoCode}
@@ -317,7 +304,6 @@ const PricingSection = () => {
                 </div>
               )}
 
-              {/* Card-level discount badge */}
               {cardDiscount && !appliedDiscount && (
                 <div className="flex items-center gap-1 text-xs font-semibold mb-2 text-green-400">
                   <Tag size={12} /> {cardDiscount.discount_percent}% off — {cardDiscount.code}

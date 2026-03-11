@@ -1,4 +1,4 @@
-import { Book, MessageCircle, Crown, Heart, LogIn, LogOut, Shield, User } from 'lucide-react';
+import { Book, MessageCircle, Crown, Heart, LogIn, LogOut, Shield, User, Code } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 const Header = ({ activeTab, onTabChange }: HeaderProps) => {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, isDev, signOut } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -61,7 +61,8 @@ const Header = ({ activeTab, onTabChange }: HeaderProps) => {
               </span>
               {isAdmin && (
                 <button onClick={() => navigate('/admin')} className="flex items-center gap-1 text-primary text-xs hover:underline">
-                  <Shield size={12} /> Admin
+                  {isDev ? <Code size={12} /> : <Shield size={12} />}
+                  {isDev ? 'Dev' : 'Admin'}
                 </button>
               )}
               <button onClick={signOut} className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground">

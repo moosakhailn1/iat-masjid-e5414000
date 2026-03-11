@@ -16,26 +16,35 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-    // Verify caller is admin
+    // Verify caller is admin or dev
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Unauthorized");
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: authError } = await supabase.auth.getUser(token);
     if (authError || !userData.user) throw new Error("Unauthorized");
 
-    const { data: adminRole } = await supabase
+    const { data: callerRoles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!adminRole) throw new Error("Forbidden: admin role required");
+      .eq("user_id", userData.user.id);
+
+    const roles = (callerRoles || []).map((r: any) => r.role);
+    const isDev = roles.includes("dev");
+    const isAdmin = roles.includes("admin") || isDev;
+    
+    if (!isAdmin) throw new Error("Forbidden: admin or dev role required");
 
     const { action, targetUserId, targetEmail, role, newPassword } = await req.json();
 
     switch (action) {
       case "add_role": {
         if (!targetUserId || !role) throw new Error("Missing targetUserId or role");
+        
+        // Only devs can assign admin or dev roles
+        if ((role === "admin" || role === "dev") && !isDev) {
+          throw new Error("Forbidden: only devs can assign admin or dev roles");
+        }
+        
         const { error } = await supabase.from("user_roles").insert({
           user_id: targetUserId,
           role: role,
@@ -53,6 +62,12 @@ serve(async (req) => {
 
       case "remove_role": {
         if (!targetUserId || !role) throw new Error("Missing targetUserId or role");
+        
+        // Only devs can remove admin or dev roles
+        if ((role === "admin" || role === "dev") && !isDev) {
+          throw new Error("Forbidden: only devs can remove admin or dev roles");
+        }
+        
         const { error } = await supabase
           .from("user_roles")
           .delete()
@@ -77,8 +92,20 @@ serve(async (req) => {
 
       case "delete_user": {
         if (!targetUserId) throw new Error("Missing targetUserId");
-        // Don't allow deleting yourself
         if (targetUserId === userData.user.id) throw new Error("Cannot delete yourself");
+        
+        // Admins (non-dev) cannot delete devs or other admins
+        if (!isDev) {
+          const { data: targetRoles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", targetUserId);
+          const targetRoleList = (targetRoles || []).map((r: any) => r.role);
+          if (targetRoleList.includes("dev") || targetRoleList.includes("admin")) {
+            throw new Error("Forbidden: only devs can delete admins or devs");
+          }
+        }
+        
         const { error } = await supabase.auth.admin.deleteUser(targetUserId);
         if (error) throw error;
         return new Response(JSON.stringify({ success: true }), {

@@ -6,23 +6,27 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are Ustadh AI — a knowledgeable, respectful, and compassionate Islamic knowledge assistant for the Islamic Association of Texas.
+const SYSTEM_PROMPT = `You are Ustadh AI — a highly knowledgeable, deeply thoughtful, and compassionate Islamic scholar and teacher for the Islamic Association of Texas.
 
-Your role:
-- Answer questions about Islam based on the Quran, authentic Hadith (Sahih Bukhari, Sahih Muslim, etc.), and mainstream scholarly opinions
-- Provide references (Quran verse numbers, Hadith sources) when possible
-- Be respectful of different schools of thought (Hanafi, Maliki, Shafi'i, Hanbali)
-- If a question is beyond your scope or controversial, advise consulting a local scholar
-- Always begin responses with "Bismillah" when appropriate
-- Use Arabic terms with English translations in parentheses
-- Keep answers clear, educational, and well-structured
-- Never issue fatwas (religious rulings); instead share scholarly perspectives
+Your expertise and approach:
+- You have deep knowledge of the Quran, Tafsir (Ibn Kathir, Al-Tabari, Al-Qurtubi), authentic Hadith collections (Sahih Bukhari, Sahih Muslim, Sunan Abu Dawud, Jami at-Tirmidhi, Sunan an-Nasa'i, Sunan Ibn Majah, Muwatta Malik), and the four major schools of Fiqh.
+- Provide detailed, well-reasoned answers with specific references (Surah name and verse number, Hadith book and number, scholar name and work).
+- When multiple scholarly opinions exist, present the main positions from different madhabs (Hanafi, Maliki, Shafi'i, Hanbali) and explain their reasoning.
+- Use Arabic terms naturally with English translations: e.g., "Tawakkul (reliance on Allah)", "Istighfar (seeking forgiveness)".
+- Structure longer responses with clear headings, numbered points, and bullet points for readability.
+- Begin responses with "Bismillah" when introducing a topic. Use appropriate Islamic phrases like "SubhanAllah", "Alhamdulillah", "Insha'Allah".
+- For practical worship questions (prayer, fasting, hajj, wudu), give step-by-step instructions.
+- When discussing sensitive or controversial topics, present balanced scholarly views and always advise consulting a local qualified scholar for personal rulings.
+- Never issue personal fatwas; instead, reference established scholarly positions.
+- Show wisdom, patience, and encouragement in your responses. Make the questioner feel welcome.
+- For follow-up questions, remember the conversation context and build on previous answers.
 
-Scope rule (STRICT):
-- Only answer Islam-related questions (Quran, Hadith, Fiqh, Aqeedah, Seerah, worship, halal/haram, Islamic manners).
-- If the user asks a non-Islamic question (e.g., tech, math, general life advice, politics, entertainment), politely refuse and ask them to rephrase as an Islam-related question.
+Scope (IMPORTANT but not overly strict):
+- Focus on Islam-related topics: Quran, Hadith, Fiqh, Aqeedah, Seerah, Islamic history, worship, ethics, halal/haram, family in Islam, Islamic finance, Muslim community life.
+- For borderline questions (e.g., general life advice, science, health), try to provide an Islamic perspective if possible.
+- Only refuse clearly off-topic questions (e.g., coding, gaming, celebrity gossip) — politely redirect them.
 
-You speak with warmth and wisdom. Format responses with markdown for readability.`;
+You speak with warmth, wisdom, and scholarly depth. Format responses with markdown for readability.`;
 
 type Plan = "free" | "Seeker AI" | "Student AI" | "Scholar AI" | "Imam AI";
 
@@ -89,57 +93,30 @@ const fetchWebContext = async (query: string) => {
   }
 };
 
-const ISLAM_KEYWORDS = [
-  "islam",
-  "muslim",
-  "allah",
-  "quran",
-  "koran",
-  "hadith",
-  "sunnah",
-  "fiqh",
-  "aqeedah",
-  "aqidah",
-  "tafsir",
-  "seerah",
-  "sira",
-  "prophet",
-  "muhammad",
-  "rasul",
-  "salah",
-  "salat",
-  "prayer",
-  "wudu",
-  "wudhu",
-  "ghusl",
-  "zakat",
-  "zakah",
-  "sawm",
-  "fasting",
-  "ramadan",
-  "hajj",
-  "umrah",
-  "eid",
-  "jumuah",
-  "jummah",
-  "dua",
-  "dhikr",
-  "halal",
-  "haram",
-  "nikah",
-  "talaq",
-  "sharia",
-  "shari'ah",
-];
-
-const isIslamicQuestion = (text: string) => {
+const isLikelyIslamicOrGeneral = (text: string) => {
   const cleaned = String(text || "")
     .replace(/\[Attached images:[^\]]+\]/gi, "")
     .toLowerCase()
     .trim();
 
   if (!cleaned) return false;
-  return ISLAM_KEYWORDS.some((k) => cleaned.includes(k));
+  
+  // Very short messages are likely conversational - allow them
+  if (cleaned.length < 10) return true;
+  
+  // Block only clearly off-topic categories
+  const offTopicPatterns = [
+    /\b(code|coding|programming|javascript|python|html|css|react|api)\b/,
+    /\b(game|gaming|fortnite|minecraft|roblox|xbox|playstation)\b/,
+    /\b(celebrity|kardashian|taylor swift|movie review|netflix)\b/,
+  ];
+  
+  for (const pattern of offTopicPatterns) {
+    if (pattern.test(cleaned)) return false;
+  }
+  
+  // Allow everything else - the AI system prompt will handle scope
+  return true;
 };
 
 
@@ -170,9 +147,9 @@ serve(async (req) => {
 
     const lastUserMessage = [...messages].reverse().find((m: any) => m?.role === "user")?.content ?? "";
 
-    if (attachments.length === 0 && !isIslamicQuestion(String(lastUserMessage))) {
+    if (attachments.length === 0 && !isLikelyIslamicOrGeneral(String(lastUserMessage))) {
       const refusal =
-        "Bismillah.\n\nI can only help with Islam-related questions (Quran, authentic Hadith, and mainstream scholarly guidance). Please ask an Islam-related question, and I’ll help insha’Allah.";
+        "Bismillah.\n\nI can only help with Islam-related questions (Quran, authentic Hadith, and mainstream scholarly guidance). Please ask an Islam-related question, and I'll help insha'Allah.";
       const sse =
         `data: ${JSON.stringify({ choices: [{ delta: { content: refusal } }] })}\n\n` +
         "data: [DONE]\n\n";
@@ -183,6 +160,14 @@ serve(async (req) => {
     }
 
     const webContext = webSearchEnabled ? await fetchWebContext(String(lastUserMessage)) : "";
+
+    // Choose model based on plan and mode
+    let model = "google/gemini-3-flash-preview";
+    if (thinkingEnabled) {
+      model = "google/gemini-2.5-pro";
+    } else if (plan === "Scholar AI" || plan === "Imam AI") {
+      model = "google/gemini-2.5-flash";
+    }
 
     const modelMessages = messages.map((m: any, idx: number) => {
       const isLast = idx === messages.length - 1;
@@ -206,15 +191,15 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: thinkingEnabled ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview",
+        model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "system",
             content: `Current user plan: ${plan}.\nEnabled perks: uploads=${perks.uploads}, thinking=${perks.thinking}, webSearch=${perks.webSearch}.\n${
               thinkingEnabled
-                ? "Deep thinking mode is ON: reason step-by-step internally and give a concise final answer."
-                : "Deep thinking mode is OFF: keep responses fast and concise."
+                ? "Deep thinking mode is ON: reason step-by-step internally, consider multiple scholarly perspectives, and give a comprehensive final answer with references."
+                : "Provide thorough, well-referenced answers. Don't be too brief — give useful detail."
             }`,
           },
           ...(webContext ? [{ role: "system", content: webContext }] : []),

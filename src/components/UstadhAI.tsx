@@ -42,6 +42,21 @@ const fileToDataUrl = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+const TypingIndicator = () => (
+  <div className="flex gap-3">
+    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-1">
+      <Bot size={14} className="text-primary" />
+    </div>
+    <div className="rounded-xl px-4 py-3 bg-secondary">
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+        <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+  </div>
+);
+
 const UstadhAI = () => {
   const { user, session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,14 +66,8 @@ const UstadhAI = () => {
   const [thinkingMode, setThinkingMode] = useState(false);
   const [webSearchMode, setWebSearchMode] = useState(false);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
-  const [questionsUsed, setQuestionsUsed] = useState(() => {
-    const stored = localStorage.getItem('ustadh_ai_usage');
-    if (stored) {
-      const { count, date } = JSON.parse(stored);
-      if (date === new Date().toDateString()) return count;
-    }
-    return 0;
-  });
+  const [questionsUsed, setQuestionsUsed] = useState(0);
+  const [usageLoaded, setUsageLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -66,8 +75,16 @@ const UstadhAI = () => {
   const isUnlimited = currentPlan === 'Imam AI';
   const remaining = isUnlimited ? Infinity : Math.max(0, dailyLimit - questionsUsed);
 
+  // Load usage from database for logged-in users, localStorage fallback for anonymous
   useEffect(() => {
     if (!user) {
+      const stored = localStorage.getItem('ustadh_ai_usage');
+      if (stored) {
+        const { count, date } = JSON.parse(stored);
+        if (date === new Date().toDateString()) setQuestionsUsed(count);
+        else setQuestionsUsed(0);
+      }
+      setUsageLoaded(true);
       setDailyLimit(DEFAULT_LIMIT);
       setCurrentPlan('free');
       setThinkingMode(false);
@@ -75,25 +92,34 @@ const UstadhAI = () => {
       return;
     }
 
-    const fetchSub = async () => {
-      const { data } = await supabase
+    const fetchSubAndUsage = async () => {
+      // Fetch subscription
+      await supabase.functions.invoke('sync-subscription');
+      const { data: subData } = await supabase
         .from('user_subscriptions')
         .select('plan, daily_limit')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (data) {
-        setDailyLimit(data.daily_limit);
-        setCurrentPlan(data.plan);
+      if (subData) {
+        setDailyLimit(subData.daily_limit);
+        setCurrentPlan(subData.plan);
       }
+
+      // Fetch today's usage from DB
+      const today = new Date().toISOString().split('T')[0];
+      const { data: usageData } = await supabase
+        .from('ai_daily_usage')
+        .select('count')
+        .eq('user_id', user.id)
+        .eq('usage_date', today)
+        .maybeSingle();
+
+      setQuestionsUsed(usageData?.count || 0);
+      setUsageLoaded(true);
     };
 
-    const syncAndFetch = async () => {
-      await supabase.functions.invoke('sync-subscription');
-      await fetchSub();
-    };
-
-    syncAndFetch();
+    fetchSubAndUsage();
 
     const channel = supabase
       .channel(`ustadh_sub:${user.id}`)
@@ -125,18 +151,44 @@ const UstadhAI = () => {
     if (!perks.uploads) setAttachments([]);
   }, [perks]);
 
-  useEffect(() => {
-    localStorage.setItem(
-      'ustadh_ai_usage',
-      JSON.stringify({ count: questionsUsed, date: new Date().toDateString() })
-    );
-  }, [questionsUsed]);
+  // Persist usage
+  const incrementUsage = async () => {
+    const newCount = questionsUsed + 1;
+    setQuestionsUsed(newCount);
+
+    if (user) {
+      const today = new Date().toISOString().split('T')[0];
+      // Upsert usage in DB
+      const { data: existing } = await supabase
+        .from('ai_daily_usage')
+        .select('id, count')
+        .eq('user_id', user.id)
+        .eq('usage_date', today)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('ai_daily_usage')
+          .update({ count: existing.count + 1 })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('ai_daily_usage')
+          .insert({ user_id: user.id, usage_date: today, count: 1 });
+      }
+    } else {
+      localStorage.setItem(
+        'ustadh_ai_usage',
+        JSON.stringify({ count: newCount, date: new Date().toDateString() })
+      );
+    }
+  };
 
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const onAttachFiles = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -179,7 +231,7 @@ const UstadhAI = () => {
 
     setMessages(newMessages);
     setInput('');
-    setQuestionsUsed((prev) => prev + 1);
+    await incrementUsage();
     setIsLoading(true);
 
     let assistantSoFar = '';
@@ -339,7 +391,7 @@ const UstadhAI = () => {
         </button>
       </div>
 
-      {messages.length > 0 && (
+      {(messages.length > 0 || isLoading) && (
         <div ref={chatRef} className="bg-card border border-border rounded-xl p-4 mb-4 max-h-[400px] overflow-y-auto space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
@@ -368,10 +420,11 @@ const UstadhAI = () => {
               )}
             </div>
           ))}
+          {isLoading && messages[messages.length - 1]?.role === 'user' && <TypingIndicator />}
         </div>
       )}
 
-      {messages.length === 0 && (
+      {messages.length === 0 && !isLoading && (
         <div className="mb-4">
           <p className="text-muted-foreground text-xs uppercase tracking-wider text-center mb-3">Suggested Questions</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
