@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Crown, Paperclip } from 'lucide-react';
+import { Send, Bot, User, Crown, Paperclip, Globe, Mic, Volume2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,33 @@ interface ChatAttachment {
   dataUrl: string;
 }
 
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'ps', label: 'Pashto (پښتو)' },
+  { code: 'fa', label: 'Dari (دری)' },
+  { code: 'ar', label: 'Arabic (العربية)' },
+  { code: 'ur', label: 'Urdu (اردو)' },
+  { code: 'tr', label: 'Turkish (Türkçe)' },
+  { code: 'ms', label: 'Malay (Bahasa Melayu)' },
+  { code: 'id', label: 'Indonesian (Bahasa Indonesia)' },
+  { code: 'bn', label: 'Bengali (বাংলা)' },
+  { code: 'fr', label: 'French (Français)' },
+  { code: 'es', label: 'Spanish (Español)' },
+  { code: 'de', label: 'German (Deutsch)' },
+  { code: 'sw', label: 'Swahili (Kiswahili)' },
+  { code: 'so', label: 'Somali (Soomaali)' },
+  { code: 'ha', label: 'Hausa' },
+];
+
+// Which languages each plan can access
+const PLAN_LANGUAGES: Record<string, string[]> = {
+  free: ['en'],
+  'Seeker AI': ['en'],
+  'Student AI': ['en', 'ps', 'fa'],
+  'Scholar AI': LANGUAGES.map(l => l.code),
+  'Imam AI': LANGUAGES.map(l => l.code),
+};
+
 const suggestedQuestions = [
   'What are the five pillars of Islam?',
   'How do I perform Salah correctly?',
@@ -26,12 +53,12 @@ const suggestedQuestions = [
 const DEFAULT_LIMIT = 15;
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
-const planPerks: Record<string, { uploads: boolean; thinking: boolean; webSearch: boolean }> = {
-  free: { uploads: false, thinking: false, webSearch: false },
-  'Seeker AI': { uploads: true, thinking: false, webSearch: false },
-  'Student AI': { uploads: true, thinking: true, webSearch: true },
-  'Scholar AI': { uploads: true, thinking: true, webSearch: true },
-  'Imam AI': { uploads: true, thinking: true, webSearch: true },
+const planPerks: Record<string, { uploads: boolean; thinking: boolean; webSearch: boolean; tts: boolean; voice: boolean }> = {
+  free: { uploads: false, thinking: false, webSearch: false, tts: false, voice: false },
+  'Seeker AI': { uploads: true, thinking: false, webSearch: false, tts: false, voice: false },
+  'Student AI': { uploads: true, thinking: true, webSearch: true, tts: false, voice: false },
+  'Scholar AI': { uploads: true, thinking: true, webSearch: true, tts: true, voice: false },
+  'Imam AI': { uploads: true, thinking: true, webSearch: true, tts: true, voice: true },
 };
 
 const fileToDataUrl = (file: File) =>
@@ -69,13 +96,16 @@ const UstadhAI = () => {
   const [questionsUsed, setQuestionsUsed] = useState(0);
   const [usageLoaded, setUsageLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [speakingMsgIndex, setSpeakingMsgIndex] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   const perks = planPerks[currentPlan] || planPerks.free;
   const isUnlimited = currentPlan === 'Imam AI';
   const remaining = isUnlimited ? Infinity : Math.max(0, dailyLimit - questionsUsed);
+  const allowedLanguages = PLAN_LANGUAGES[currentPlan] || PLAN_LANGUAGES.free;
 
-  // Load usage from database for logged-in users, localStorage fallback for anonymous
+  // Load usage from database
   useEffect(() => {
     if (!user) {
       const stored = localStorage.getItem('ustadh_ai_usage');
@@ -87,13 +117,11 @@ const UstadhAI = () => {
       setUsageLoaded(true);
       setDailyLimit(DEFAULT_LIMIT);
       setCurrentPlan('free');
-      setThinkingMode(false);
-      setWebSearchMode(false);
+      setSelectedLanguage('en');
       return;
     }
 
     const fetchSubAndUsage = async () => {
-      // Fetch subscription
       await supabase.functions.invoke('sync-subscription');
       const { data: subData } = await supabase
         .from('user_subscriptions')
@@ -106,7 +134,6 @@ const UstadhAI = () => {
         setCurrentPlan(subData.plan);
       }
 
-      // Fetch today's usage from DB
       const today = new Date().toISOString().split('T')[0];
       const { data: usageData } = await supabase
         .from('ai_daily_usage')
@@ -123,27 +150,26 @@ const UstadhAI = () => {
 
     const channel = supabase
       .channel(`ustadh_sub:${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_subscriptions',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload: any) => {
-          if (payload.new) {
-            setDailyLimit(payload.new.daily_limit);
-            setCurrentPlan(payload.new.plan);
-          }
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'user_subscriptions',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new) {
+          setDailyLimit(payload.new.daily_limit);
+          setCurrentPlan(payload.new.plan);
         }
-      )
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
+
+  // Reset language if plan changes and current language isn't allowed
+  useEffect(() => {
+    if (!allowedLanguages.includes(selectedLanguage)) {
+      setSelectedLanguage('en');
+    }
+  }, [allowedLanguages, selectedLanguage]);
 
   useEffect(() => {
     if (!perks.thinking) setThinkingMode(false);
@@ -151,14 +177,12 @@ const UstadhAI = () => {
     if (!perks.uploads) setAttachments([]);
   }, [perks]);
 
-  // Persist usage
   const incrementUsage = async () => {
     const newCount = questionsUsed + 1;
     setQuestionsUsed(newCount);
 
     if (user) {
       const today = new Date().toISOString().split('T')[0];
-      // Upsert usage in DB
       const { data: existing } = await supabase
         .from('ai_daily_usage')
         .select('id, count')
@@ -167,65 +191,57 @@ const UstadhAI = () => {
         .maybeSingle();
 
       if (existing) {
-        await supabase
-          .from('ai_daily_usage')
-          .update({ count: existing.count + 1 })
-          .eq('id', existing.id);
+        await supabase.from('ai_daily_usage').update({ count: existing.count + 1 }).eq('id', existing.id);
       } else {
-        await supabase
-          .from('ai_daily_usage')
-          .insert({ user_id: user.id, usage_date: today, count: 1 });
+        await supabase.from('ai_daily_usage').insert({ user_id: user.id, usage_date: today, count: 1 });
       }
     } else {
-      localStorage.setItem(
-        'ustadh_ai_usage',
-        JSON.stringify({ count: newCount, date: new Date().toDateString() })
-      );
+      localStorage.setItem('ustadh_ai_usage', JSON.stringify({ count: newCount, date: new Date().toDateString() }));
     }
   };
 
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isLoading]);
 
   const onAttachFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    if (!perks.uploads) {
-      toast.error('Uploads are available on paid plans.');
-      return;
-    }
+    if (!perks.uploads) { toast.error('Uploads are available on paid plans.'); return; }
 
     const selected = Array.from(files).slice(0, 3);
-    const validImages = selected.filter((file) => file.type.startsWith('image/') && file.size <= 4 * 1024 * 1024);
-
-    if (validImages.length === 0) {
-      toast.error('Please select image files up to 4MB each.');
-      return;
-    }
+    const validImages = selected.filter(f => f.type.startsWith('image/') && f.size <= 4 * 1024 * 1024);
+    if (validImages.length === 0) { toast.error('Please select image files up to 4MB each.'); return; }
 
     try {
-      const prepared = await Promise.all(
-        validImages.map(async (file) => ({
-          name: file.name,
-          type: file.type,
-          dataUrl: await fileToDataUrl(file),
-        }))
-      );
-      setAttachments((prev) => [...prev, ...prepared].slice(0, 3));
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to attach files');
+      const prepared = await Promise.all(validImages.map(async f => ({
+        name: f.name, type: f.type, dataUrl: await fileToDataUrl(f),
+      })));
+      setAttachments(prev => [...prev, ...prepared].slice(0, 3));
+    } catch (error: any) { toast.error(error.message || 'Failed to attach files'); }
+  };
+
+  const speakText = (text: string, index: number) => {
+    if (!perks.tts) { toast.error('Text-to-speech is available on Scholar AI and above.'); return; }
+    if (speakingMsgIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgIndex(null);
+      return;
     }
+    window.speechSynthesis.cancel();
+    const langMap: Record<string, string> = { en: 'en-US', ar: 'ar-SA', ps: 'ps', fa: 'fa-IR', ur: 'ur-PK', tr: 'tr-TR', ms: 'ms-MY', id: 'id-ID', bn: 'bn-BD', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', sw: 'sw', so: 'so', ha: 'ha' };
+    const cleanText = text.replace(/[#*_`~>\-|]/g, '').replace(/\[.*?\]\(.*?\)/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = langMap[selectedLanguage] || 'en-US';
+    utterance.onend = () => setSpeakingMsgIndex(null);
+    utterance.onerror = () => setSpeakingMsgIndex(null);
+    setSpeakingMsgIndex(index);
+    window.speechSynthesis.speak(utterance);
   };
 
   const sendMessage = async (text: string) => {
     if ((!text.trim() && attachments.length === 0) || (!isUnlimited && remaining <= 0) || isLoading) return;
 
-    const attachmentNote = attachments.length
-      ? `\n\n[Attached images: ${attachments.map((a) => a.name).join(', ')}]`
-      : '';
-
+    const attachmentNote = attachments.length ? `\n\n[Attached images: ${attachments.map(a => a.name).join(', ')}]` : '';
     const userMsg: Message = { role: 'user', content: `${text.trim()}${attachmentNote}`.trim() };
     const newMessages = [...messages, userMsg];
 
@@ -248,10 +264,8 @@ const UstadhAI = () => {
         body: JSON.stringify({
           messages: newMessages,
           attachments,
-          options: {
-            thinking: thinkingMode,
-            webSearch: webSearchMode,
-          },
+          language: selectedLanguage,
+          options: { thinking: thinkingMode, webSearch: webSearchMode },
         }),
       });
 
@@ -261,7 +275,6 @@ const UstadhAI = () => {
       }
 
       if (!resp.body) throw new Error('No response body');
-
       setAttachments([]);
 
       const reader = resp.body.getReader();
@@ -270,7 +283,7 @@ const UstadhAI = () => {
 
       const upsertAssistant = (chunk: string) => {
         assistantSoFar += chunk;
-        setMessages((prev) => {
+        setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.role === 'assistant') {
             return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
@@ -293,10 +306,7 @@ const UstadhAI = () => {
           if (line.startsWith(':') || line.trim() === '') continue;
           if (!line.startsWith('data: ')) continue;
           const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') {
-            streamDone = true;
-            break;
-          }
+          if (jsonStr === '[DONE]') { streamDone = true; break; }
           try {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
@@ -310,10 +320,7 @@ const UstadhAI = () => {
     } catch (e: any) {
       console.error('Ustadh AI error:', e);
       toast.error(e.message || 'Failed to get response');
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'I apologize, I was unable to process your question. Please try again.' },
-      ]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I was unable to process your question. Please try again.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -332,21 +339,41 @@ const UstadhAI = () => {
         </p>
       </div>
 
+      {/* Status bar */}
       <div className="flex flex-wrap justify-center items-center gap-2 mb-4 text-xs">
         <span className="bg-card border border-border rounded-full px-3 py-1 text-foreground flex items-center gap-1">
           <Crown size={12} className="text-primary" /> {currentPlan}
         </span>
-        <span className={`rounded-full px-3 py-1 border ${perks.uploads ? 'bg-primary/10 border-primary/30 text-foreground' : 'bg-secondary border-border text-muted-foreground'}`}>
-          Uploads
-        </span>
-        <span className={`rounded-full px-3 py-1 border ${perks.thinking ? 'bg-primary/10 border-primary/30 text-foreground' : 'bg-secondary border-border text-muted-foreground'}`}>
-          Thinking
-        </span>
-        <span className={`rounded-full px-3 py-1 border ${perks.webSearch ? 'bg-primary/10 border-primary/30 text-foreground' : 'bg-secondary border-border text-muted-foreground'}`}>
-          Web Search
-        </span>
+        {(['Uploads', 'Thinking', 'Web Search', 'TTS', 'Voice'] as const).map(label => {
+          const key = label === 'TTS' ? 'tts' : label === 'Web Search' ? 'webSearch' : label.toLowerCase() as keyof typeof perks;
+          const active = perks[key];
+          return (
+            <span key={label} className={`rounded-full px-3 py-1 border ${active ? 'bg-primary/10 border-primary/30 text-foreground' : 'bg-secondary border-border text-muted-foreground'}`}>
+              {label}
+            </span>
+          );
+        })}
       </div>
 
+      {/* Language selector */}
+      <div className="flex justify-center mb-4">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-full px-3 py-1.5">
+          <Globe size={14} className="text-primary" />
+          <select
+            value={selectedLanguage}
+            onChange={e => setSelectedLanguage(e.target.value)}
+            className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer"
+          >
+            {LANGUAGES.map(lang => (
+              <option key={lang.code} value={lang.code} disabled={!allowedLanguages.includes(lang.code)}>
+                {lang.label} {!allowedLanguages.includes(lang.code) ? '🔒' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Usage counter */}
       <div className="flex justify-center mb-6">
         <div className="bg-secondary rounded-full px-4 py-2 flex items-center gap-2">
           {isUnlimited ? (
@@ -366,31 +393,19 @@ const UstadhAI = () => {
         </div>
       </div>
 
+      {/* Mode toggles */}
       <div className="flex justify-center gap-2 mb-4">
-        <button
-          onClick={() => perks.thinking && setThinkingMode((v) => !v)}
-          disabled={!perks.thinking}
-          className={`text-xs rounded-full px-3 py-1 border transition-colors ${
-            thinkingMode
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'bg-secondary text-secondary-foreground border-border disabled:text-muted-foreground'
-          }`}
-        >
+        <button onClick={() => perks.thinking && setThinkingMode(v => !v)} disabled={!perks.thinking}
+          className={`text-xs rounded-full px-3 py-1 border transition-colors ${thinkingMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary text-secondary-foreground border-border disabled:text-muted-foreground'}`}>
           Deep Thinking
         </button>
-        <button
-          onClick={() => perks.webSearch && setWebSearchMode((v) => !v)}
-          disabled={!perks.webSearch}
-          className={`text-xs rounded-full px-3 py-1 border transition-colors ${
-            webSearchMode
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'bg-secondary text-secondary-foreground border-border disabled:text-muted-foreground'
-          }`}
-        >
+        <button onClick={() => perks.webSearch && setWebSearchMode(v => !v)} disabled={!perks.webSearch}
+          className={`text-xs rounded-full px-3 py-1 border transition-colors ${webSearchMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary text-secondary-foreground border-border disabled:text-muted-foreground'}`}>
           Web Search
         </button>
       </div>
 
+      {/* Chat messages */}
       {(messages.length > 0 || isLoading) && (
         <div ref={chatRef} className="bg-card border border-border rounded-xl p-4 mb-4 max-h-[400px] overflow-y-auto space-y-4">
           {messages.map((msg, i) => (
@@ -400,19 +415,20 @@ const UstadhAI = () => {
                   <Bot size={14} className="text-primary" />
                 </div>
               )}
-              <div
-                className={`rounded-xl px-4 py-2.5 text-sm max-w-[80%] ${
-                  msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-                }`}
-              >
+              <div className={`rounded-xl px-4 py-2.5 text-sm max-w-[80%] ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
                 {msg.role === 'assistant' ? (
                   <div className="prose prose-sm prose-invert max-w-none">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
-                ) : (
-                  msg.content
-                )}
+                ) : msg.content}
               </div>
+              {msg.role === 'assistant' && perks.tts && (
+                <button onClick={() => speakText(msg.content, i)}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 transition-colors ${speakingMsgIndex === i ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'}`}
+                  title="Read aloud">
+                  <Volume2 size={12} />
+                </button>
+              )}
               {msg.role === 'user' && (
                 <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
                   <User size={14} className="text-muted-foreground" />
@@ -424,16 +440,14 @@ const UstadhAI = () => {
         </div>
       )}
 
+      {/* Suggested questions */}
       {messages.length === 0 && !isLoading && (
         <div className="mb-4">
           <p className="text-muted-foreground text-xs uppercase tracking-wider text-center mb-3">Suggested Questions</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {suggestedQuestions.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(q)}
-                className="bg-card border border-border rounded-xl p-3 text-sm text-foreground text-left hover:border-primary/50 transition-colors"
-              >
+              <button key={i} onClick={() => sendMessage(q)}
+                className="bg-card border border-border rounded-xl p-3 text-sm text-foreground text-left hover:border-primary/50 transition-colors">
                 {q}
               </button>
             ))}
@@ -441,38 +455,31 @@ const UstadhAI = () => {
         </div>
       )}
 
+      {/* Attachments */}
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {attachments.map((a, i) => (
-            <button
-              key={`${a.name}-${i}`}
-              onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-              className="text-xs bg-secondary text-secondary-foreground border border-border rounded-full px-3 py-1"
-            >
+            <button key={`${a.name}-${i}`} onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+              className="text-xs bg-secondary text-secondary-foreground border border-border rounded-full px-3 py-1">
               {a.name} ✕
             </button>
           ))}
         </div>
       )}
 
+      {/* Input */}
       <div className="relative">
         <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
           <label className={`cursor-pointer ${perks.uploads ? 'text-primary' : 'text-muted-foreground'}`}>
             <Paperclip size={16} />
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              disabled={!perks.uploads}
-              onChange={(e) => onAttachFiles(e.target.files)}
-            />
+            <input type="file" accept="image/*" multiple className="hidden" disabled={!perks.uploads}
+              onChange={e => onAttachFiles(e.target.files)} />
           </label>
         </div>
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
           placeholder={isUnlimited || remaining > 0 ? 'Ask about Islam...' : 'Daily limit reached. Upgrade for more.'}
           disabled={!isUnlimited && remaining <= 0}
           className="w-full bg-card text-foreground placeholder:text-muted-foreground rounded-xl pl-10 pr-12 py-3.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
