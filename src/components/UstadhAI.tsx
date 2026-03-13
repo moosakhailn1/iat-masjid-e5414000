@@ -289,64 +289,64 @@ const UstadhAI = () => {
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
-
-      recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const transcript = event.results[i]?.[0]?.transcript || '';
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        if (interimTranscript.trim()) {
-          setVoiceDraft(interimTranscript.trim());
-        }
-
-        if (finalTranscript.trim()) {
-          voicePendingResponseRef.current = true;
-          setVoiceDraft('');
-          setInput(finalTranscript.trim());
-          recognition.stop();
-          sendMessage(finalTranscript.trim(), { fromVoice: true });
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        setIsListening(false);
-
-        if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
-          toast.error('Microphone access is blocked. Please allow microphone permission.');
-          voiceConversationRef.current = false;
-          setVoiceConversationActive(false);
-          return;
-        }
-
-        if (event?.error === 'language-not-supported') {
-          toast.error(`Voice input is not available for ${selectedLanguageLabel} on this device.`);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        if (
-          voiceConversationRef.current &&
-          !voicePendingResponseRef.current &&
-          !isLoadingRef.current &&
-          !isSpeakingRef.current
-        ) {
-          window.setTimeout(() => startListening(), 350);
-        }
-      };
-
       recognitionRef.current = recognition;
     }
 
     const recognition = recognitionRef.current;
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const transcript = event.results[i]?.[0]?.transcript || '';
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (interimTranscript.trim()) {
+        setVoiceDraft(interimTranscript.trim());
+      }
+
+      if (finalTranscript.trim()) {
+        voicePendingResponseRef.current = true;
+        setVoiceDraft('');
+        setInput(finalTranscript.trim());
+        recognition.stop();
+        sendMessage(finalTranscript.trim(), { fromVoice: true });
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        toast.error('Microphone access is blocked. Please allow microphone permission.');
+        voiceConversationRef.current = false;
+        setVoiceConversationActive(false);
+        return;
+      }
+
+      if (event?.error === 'language-not-supported') {
+        toast.error(`Voice input is not available for ${selectedLanguageLabel} on this device.`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      if (
+        voiceConversationRef.current &&
+        !voicePendingResponseRef.current &&
+        !isLoadingRef.current &&
+        !isSpeakingRef.current
+      ) {
+        window.setTimeout(() => startListening(), 350);
+      }
+    };
+
     recognition.lang = (LANGUAGE_LOCALES[selectedLanguage] || ['en-US'])[0];
 
     try {
