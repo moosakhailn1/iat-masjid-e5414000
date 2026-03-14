@@ -238,19 +238,8 @@ const UstadhAI = () => {
     setQuestionsUsed(newCount);
 
     if (user) {
-      const today = new Date().toISOString().split('T')[0];
-      const { data: existing } = await supabase
-        .from('ai_daily_usage')
-        .select('id, count')
-        .eq('user_id', user.id)
-        .eq('usage_date', today)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from('ai_daily_usage').update({ count: existing.count + 1 }).eq('id', existing.id);
-      } else {
-        await supabase.from('ai_daily_usage').insert({ user_id: user.id, usage_date: today, count: 1 });
-      }
+      // Use secure server-side function to prevent count manipulation
+      await supabase.rpc('increment_ai_usage');
     } else {
       localStorage.setItem('ustadh_ai_usage', JSON.stringify({ count: newCount, date: new Date().toDateString() }));
     }

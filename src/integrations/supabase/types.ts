@@ -320,6 +320,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_ai_usage: { Args: never; Returns: undefined }
       is_admin_or_dev: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
