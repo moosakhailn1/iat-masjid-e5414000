@@ -134,6 +134,7 @@ const UstadhAI = () => {
   const [usageLoaded, setUsageLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [lastSentAt, setLastSentAt] = useState(0);
 
   const chatRef = useRef<HTMLDivElement>(null);
 
