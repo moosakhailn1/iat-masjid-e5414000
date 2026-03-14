@@ -161,10 +161,10 @@ serve(async (req) => {
 
     let model = MODEL_BY_PLAN[plan] || "google/gemini-2.5-flash";
     if (thinkingEnabled && plan === "Student AI") {
-      model = "google/gemini-2.5-pro";
+      model = "google/gemini-2.5-flash";
     }
     if (thinkingEnabled && (plan === "Scholar AI" || plan === "Imam AI")) {
-      model = "openai/gpt-5.2";
+      model = "openai/gpt-5-mini";
     }
 
     const modelMessages = messages.map((m: any, idx: number) => {
