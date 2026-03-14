@@ -44,10 +44,10 @@ const PLAN_PERKS: Record<Plan, { uploads: boolean; thinking: boolean; webSearch:
 
 const MODEL_BY_PLAN: Record<Plan, string> = {
   free: "google/gemini-2.5-flash-lite",
-  "Seeker AI": "google/gemini-2.5-flash",
+  "Seeker AI": "google/gemini-2.5-flash-lite",
   "Student AI": "google/gemini-2.5-flash",
-  "Scholar AI": "openai/gpt-5-mini",
-  "Imam AI": "openai/gpt-5.2",
+  "Scholar AI": "google/gemini-2.5-flash",
+  "Imam AI": "openai/gpt-5-mini",
 };
 
 const normalizePlan = (rawPlan?: string | null): Plan => {
@@ -161,10 +161,10 @@ serve(async (req) => {
 
     let model = MODEL_BY_PLAN[plan] || "google/gemini-2.5-flash";
     if (thinkingEnabled && plan === "Student AI") {
-      model = "google/gemini-2.5-pro";
+      model = "google/gemini-2.5-flash";
     }
     if (thinkingEnabled && (plan === "Scholar AI" || plan === "Imam AI")) {
-      model = "openai/gpt-5.2";
+      model = "openai/gpt-5-mini";
     }
 
     const modelMessages = messages.map((m: any, idx: number) => {
