@@ -3,6 +3,7 @@ import { Check, Crown, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import EmbeddedCheckoutModal from './EmbeddedCheckoutModal';
 
 const plans = [
   {
@@ -40,9 +41,9 @@ const plans = [
       '500 AI questions/day',
       'All supported languages (15)',
       'High-intelligence scholar model',
-      'Text-to-speech in selected language (device voice support required)',
       'Advanced structured references + nuanced analysis',
       'File & image uploads (up to 3 per message)',
+      'Dedicated support',
     ],
   },
   {
@@ -52,11 +53,10 @@ const plans = [
     features: [
       'Unlimited AI questions',
       'All supported languages (15)',
-      'Full continuous voice conversation mode',
-      'Auto listen → answer → speak loop',
       'Strongest model for complex Islamic questions',
       'Unlimited web search & deep thinking modes',
-      'Dedicated support',
+      'Full image & file analysis',
+      'Premium dedicated support',
     ],
   },
 ];
@@ -68,8 +68,8 @@ const PricingSection = () => {
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
   const [subLoading, setSubLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [priceMap, setPriceMap] = useState<Record<string, { monthly: string; yearly: string }>>({});
+  const [checkoutPriceId, setCheckoutPriceId] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -99,6 +99,7 @@ const PricingSection = () => {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('checkout') === 'success') {
+      toast.success('Payment successful! Your plan is being activated…');
       let attempts = 0;
       const pollInterval = setInterval(async () => {
         attempts++;
@@ -174,7 +175,7 @@ const PricingSection = () => {
     return +(price * (1 - pct / 100)).toFixed(2);
   };
 
-  const handleSubscribe = async (plan: typeof plans[0]) => {
+  const handleSubscribe = (plan: typeof plans[0]) => {
     if (!user) {
       toast.info('Please sign in first to subscribe.');
       return;
@@ -187,29 +188,23 @@ const PricingSection = () => {
     }
 
     const priceId = isYearly ? prices.yearly : prices.monthly;
-    const returnUrl = window.location.href;
-    setCheckoutLoading(plan.name);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId, returnUrl },
-      });
-
-      if (error) throw error;
-      if (data?.url) {
-        window.location.assign(data.url);
-      } else {
-        throw new Error('No checkout URL returned');
-      }
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to start checkout');
-    } finally {
-      setCheckoutLoading(null);
+    if (!priceId) {
+      toast.error('Price not configured for this billing period.');
+      return;
     }
+
+    setCheckoutPriceId(priceId);
   };
 
   return (
     <div className="animate-fade-in">
+      {checkoutPriceId && (
+        <EmbeddedCheckoutModal
+          priceId={checkoutPriceId}
+          onClose={() => setCheckoutPriceId(null)}
+        />
+      )}
+
       {bannerDiscounts.map(d => (
         <div key={d.id} className="mb-4 bg-primary/10 border border-primary/30 rounded-xl p-4 text-center">
           <Tag size={16} className="inline mr-2 text-primary" />
@@ -330,16 +325,13 @@ const PricingSection = () => {
               ) : (
                 <button
                   onClick={() => handleSubscribe(plan)}
-                  disabled={checkoutLoading === plan.name}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     plan.popular
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                       : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                  } disabled:opacity-50`}
+                  }`}
                 >
-                  {checkoutLoading === plan.name
-                    ? 'Redirecting…'
-                    : currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
+                  {currentPlan !== 'free' && plans.findIndex(p => p.name === currentPlan) > plans.findIndex(p => p.name === plan.name) ? 'Downgrade' : 'Get Started'}
                 </button>
               )}
             </div>

@@ -6,8 +6,6 @@ import {
   Crown,
   Paperclip,
   Globe,
-  Mic,
-  Volume2,
   Loader2,
   Languages,
 } from 'lucide-react';
@@ -33,24 +31,8 @@ type PlanPerkConfig = {
   uploads: boolean;
   thinking: boolean;
   webSearch: boolean;
-  tts: boolean;
-  voice: boolean;
   modelLabel: string;
 };
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  maxAlternatives: number;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -70,25 +52,6 @@ const LANGUAGES = [
   { code: 'ha', label: 'Hausa' },
 ] as const;
 
-const LANGUAGE_LOCALES: Record<string, string[]> = {
-  en: ['en-US', 'en-GB'],
-  ps: ['ps-AF', 'ps-PK'],
-  fa: ['fa-AF', 'fa-IR'],
-  ar: ['ar-SA', 'ar-AE', 'ar-EG'],
-  ur: ['ur-PK', 'ur-IN'],
-  tr: ['tr-TR'],
-  ms: ['ms-MY'],
-  id: ['id-ID'],
-  bn: ['bn-BD', 'bn-IN'],
-  fr: ['fr-FR'],
-  es: ['es-ES', 'es-MX'],
-  de: ['de-DE'],
-  sw: ['sw-KE', 'sw-TZ'],
-  so: ['so-SO'],
-  ha: ['ha-NG'],
-};
-
-// Which languages each plan can access
 const PLAN_LANGUAGES: Record<PlanName, string[]> = {
   free: ['en'],
   'Seeker AI': ['en'],
@@ -125,39 +88,11 @@ const DEFAULT_LIMIT = 15;
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const planPerks: Record<PlanName, PlanPerkConfig> = {
-  free: { uploads: false, thinking: false, webSearch: false, tts: false, voice: false, modelLabel: 'Foundational AI' },
-  'Seeker AI': {
-    uploads: true,
-    thinking: false,
-    webSearch: false,
-    tts: false,
-    voice: false,
-    modelLabel: 'Guided Q&A',
-  },
-  'Student AI': {
-    uploads: true,
-    thinking: true,
-    webSearch: true,
-    tts: false,
-    voice: false,
-    modelLabel: 'Research AI',
-  },
-  'Scholar AI': {
-    uploads: true,
-    thinking: true,
-    webSearch: true,
-    tts: true,
-    voice: false,
-    modelLabel: 'Scholar Engine',
-  },
-  'Imam AI': {
-    uploads: true,
-    thinking: true,
-    webSearch: true,
-    tts: true,
-    voice: true,
-    modelLabel: 'Imam Conversational AI',
-  },
+  free: { uploads: false, thinking: false, webSearch: false, modelLabel: 'Foundational AI' },
+  'Seeker AI': { uploads: true, thinking: false, webSearch: false, modelLabel: 'Guided Q&A' },
+  'Student AI': { uploads: true, thinking: true, webSearch: true, modelLabel: 'Research AI' },
+  'Scholar AI': { uploads: true, thinking: true, webSearch: true, modelLabel: 'Scholar Engine' },
+  'Imam AI': { uploads: true, thinking: true, webSearch: true, modelLabel: 'Imam Conversational AI' },
 };
 
 const fileToDataUrl = (file: File) =>
@@ -167,37 +102,6 @@ const fileToDataUrl = (file: File) =>
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
-
-const getSpeechRecognitionCtor = (): SpeechRecognitionCtor | null => {
-  if (typeof window === 'undefined') return null;
-  const maybeCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  return maybeCtor || null;
-};
-
-const supportsSpeechRecognition = () => Boolean(getSpeechRecognitionCtor());
-const supportsSpeechSynthesis = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
-
-const sanitizeForSpeech = (text: string, languageCode: string) => {
-  let cleaned = text
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^>\s?/gm, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    .replace(/\r?\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (['ar', 'fa', 'ps', 'ur'].includes(languageCode)) {
-    cleaned = cleaned.normalize('NFKC').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
-  }
-
-  return cleaned;
-};
 
 const TypingIndicator = () => (
   <div className="flex gap-3">
@@ -227,18 +131,8 @@ const UstadhAI = () => {
   const [usageLoaded, setUsageLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
-  const [speakingMsgIndex, setSpeakingMsgIndex] = useState<number | null>(null);
-  const [voiceConversationActive, setVoiceConversationActive] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceDraft, setVoiceDraft] = useState('');
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   const chatRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const voiceConversationRef = useRef(false);
-  const voicePendingResponseRef = useRef(false);
-  const isLoadingRef = useRef(false);
-  const isSpeakingRef = useRef(false);
 
   const perks = planPerks[currentPlan] || planPerks.free;
   const isUnlimited = currentPlan === 'Imam AI';
@@ -246,168 +140,6 @@ const UstadhAI = () => {
   const allowedLanguages = PLAN_LANGUAGES[currentPlan] || PLAN_LANGUAGES.free;
 
   const selectedLanguageLabel = LANGUAGES.find((lang) => lang.code === selectedLanguage)?.label || 'English';
-
-  const pickVoiceForLanguage = (languageCode: string) => {
-    const availableVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
-    const localePreferences = LANGUAGE_LOCALES[languageCode] || ['en-US'];
-
-    for (const locale of localePreferences) {
-      const exactMatch = availableVoices.find((voice) => voice.lang.toLowerCase() === locale.toLowerCase());
-      if (exactMatch) return { voice: exactMatch, lang: locale, hasNativeVoice: true };
-    }
-
-    for (const locale of localePreferences) {
-      const prefix = locale.split('-')[0]?.toLowerCase();
-      const prefixMatch = availableVoices.find((voice) => voice.lang.toLowerCase().startsWith(`${prefix}-`) || voice.lang.toLowerCase() === prefix);
-      if (prefixMatch) return { voice: prefixMatch, lang: prefixMatch.lang, hasNativeVoice: true };
-    }
-
-    return { voice: null as SpeechSynthesisVoice | null, lang: localePreferences[0], hasNativeVoice: false };
-  };
-
-  const stopListening = () => {
-    recognitionRef.current?.stop();
-    setIsListening(false);
-  };
-
-  const stopSpeaking = () => {
-    if (supportsSpeechSynthesis()) {
-      window.speechSynthesis.cancel();
-    }
-    setSpeakingMsgIndex(null);
-    isSpeakingRef.current = false;
-  };
-
-  const startListening = () => {
-    if (!voiceConversationRef.current || !perks.voice || !supportsSpeechRecognition()) return;
-
-    const SpeechRecognition = getSpeechRecognitionCtor();
-    if (!SpeechRecognition) return;
-
-    if (!recognitionRef.current) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-      recognitionRef.current = recognition;
-    }
-
-    const recognition = recognitionRef.current;
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const transcript = event.results[i]?.[0]?.transcript || '';
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      if (interimTranscript.trim()) {
-        setVoiceDraft(interimTranscript.trim());
-      }
-
-      if (finalTranscript.trim()) {
-        voicePendingResponseRef.current = true;
-        setVoiceDraft('');
-        setInput(finalTranscript.trim());
-        recognition.stop();
-        sendMessage(finalTranscript.trim(), { fromVoice: true });
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      setIsListening(false);
-
-      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
-        toast.error('Microphone access is blocked. Please allow microphone permission.');
-        voiceConversationRef.current = false;
-        setVoiceConversationActive(false);
-        return;
-      }
-
-      if (event?.error === 'language-not-supported') {
-        toast.error(`Voice input is not available for ${selectedLanguageLabel} on this device.`);
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      if (
-        voiceConversationRef.current &&
-        !voicePendingResponseRef.current &&
-        !isLoadingRef.current &&
-        !isSpeakingRef.current
-      ) {
-        window.setTimeout(() => startListening(), 350);
-      }
-    };
-
-    recognition.lang = (LANGUAGE_LOCALES[selectedLanguage] || ['en-US'])[0];
-
-    try {
-      recognition.start();
-      setIsListening(true);
-    } catch {
-      // Ignore invalid state errors caused by rapid restarts.
-    }
-  };
-
-  const speakText = async (text: string, index?: number) => {
-    if (!perks.tts) {
-      toast.error('Text-to-speech is available on Scholar AI and above.');
-      return false;
-    }
-
-    if (!supportsSpeechSynthesis()) {
-      toast.error('Text-to-speech is not supported on this browser.');
-      return false;
-    }
-
-    if (typeof index === 'number' && speakingMsgIndex === index) {
-      stopSpeaking();
-      return false;
-    }
-
-    const cleaned = sanitizeForSpeech(text, selectedLanguage);
-    if (!cleaned) return false;
-
-    const { voice, lang, hasNativeVoice } = pickVoiceForLanguage(selectedLanguage);
-    if (!hasNativeVoice && selectedLanguage !== 'en') {
-      toast.error(`No ${selectedLanguageLabel} voice is installed on this device. Add a ${selectedLanguageLabel} system voice for proper playback.`);
-      return false;
-    }
-
-    stopListening();
-    stopSpeaking();
-
-    return new Promise<boolean>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(cleaned);
-      utterance.lang = voice?.lang || lang;
-      if (voice) utterance.voice = voice;
-      utterance.rate = selectedLanguage === 'ar' ? 0.9 : 1;
-
-      utterance.onend = () => {
-        setSpeakingMsgIndex(null);
-        isSpeakingRef.current = false;
-        resolve(true);
-      };
-
-      utterance.onerror = () => {
-        setSpeakingMsgIndex(null);
-        isSpeakingRef.current = false;
-        resolve(false);
-      };
-
-      setSpeakingMsgIndex(typeof index === 'number' ? index : -1);
-      isSpeakingRef.current = true;
-      window.speechSynthesis.speak(utterance);
-    });
-  };
 
   // Load usage from database
   useEffect(() => {
@@ -482,21 +214,6 @@ const UstadhAI = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!supportsSpeechSynthesis()) return;
-
-    const syncVoices = () => {
-      setVoices(window.speechSynthesis.getVoices());
-    };
-
-    syncVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', syncVoices);
-
-    return () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', syncVoices);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!allowedLanguages.includes(selectedLanguage)) {
       setSelectedLanguage('en');
     }
@@ -506,42 +223,11 @@ const UstadhAI = () => {
     if (!perks.thinking) setThinkingMode(false);
     if (!perks.webSearch) setWebSearchMode(false);
     if (!perks.uploads) setAttachments([]);
-
-    if (!perks.voice && voiceConversationRef.current) {
-      voiceConversationRef.current = false;
-      setVoiceConversationActive(false);
-      stopListening();
-      setVoiceDraft('');
-    }
   }, [perks]);
-
-  useEffect(() => {
-    isLoadingRef.current = isLoading;
-  }, [isLoading]);
-
-  useEffect(() => {
-    voiceConversationRef.current = voiceConversationActive;
-  }, [voiceConversationActive]);
-
-  useEffect(() => {
-    if (voiceConversationActive && isListening) {
-      stopListening();
-    }
-  }, [selectedLanguage]);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isLoading]);
-
-  useEffect(
-    () => () => {
-      recognitionRef.current?.stop();
-      if (supportsSpeechSynthesis()) {
-        window.speechSynthesis.cancel();
-      }
-    },
-    [],
-  );
 
   const incrementUsage = async () => {
     const newCount = questionsUsed + 1;
@@ -594,7 +280,7 @@ const UstadhAI = () => {
     }
   };
 
-  const sendMessage = async (text: string, meta?: { fromVoice?: boolean }) => {
+  const sendMessage = async (text: string) => {
     if ((!text.trim() && attachments.length === 0) || (!isUnlimited && remaining <= 0) || isLoading || !usageLoaded) return;
 
     const attachmentNote = attachments.length ? `\n\n[Attached images: ${attachments.map((a) => a.name).join(', ')}]` : '';
@@ -605,8 +291,6 @@ const UstadhAI = () => {
     setInput('');
     await incrementUsage();
     setIsLoading(true);
-
-    let assistantSoFar = '';
 
     try {
       const resp = await fetch(CHAT_URL, {
@@ -636,6 +320,7 @@ const UstadhAI = () => {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = '';
+      let assistantSoFar = '';
 
       const upsertAssistant = (chunk: string) => {
         assistantSoFar += chunk;
@@ -688,49 +373,7 @@ const UstadhAI = () => {
       ]);
     } finally {
       setIsLoading(false);
-
-      if (voiceConversationRef.current && perks.voice && assistantSoFar.trim()) {
-        await speakText(assistantSoFar);
-      }
-
-      if (meta?.fromVoice) {
-        voicePendingResponseRef.current = false;
-      }
-
-      if (voiceConversationRef.current && perks.voice) {
-        window.setTimeout(() => startListening(), 350);
-      }
     }
-  };
-
-  const toggleVoiceConversation = () => {
-    if (!perks.voice) {
-      toast.error('Voice conversation is available only on Imam AI.');
-      return;
-    }
-
-    if (!supportsSpeechRecognition()) {
-      toast.error('Voice input is not supported in this browser.');
-      return;
-    }
-
-    if (voiceConversationActive) {
-      voiceConversationRef.current = false;
-      setVoiceConversationActive(false);
-      voicePendingResponseRef.current = false;
-      setVoiceDraft('');
-      stopListening();
-      stopSpeaking();
-      toast.success('Voice conversation stopped.');
-      return;
-    }
-
-    voiceConversationRef.current = true;
-    setVoiceConversationActive(true);
-    voicePendingResponseRef.current = false;
-    setVoiceDraft('');
-    startListening();
-    toast.success(`Voice conversation started in ${selectedLanguageLabel}.`);
   };
 
   return (
@@ -742,7 +385,7 @@ const UstadhAI = () => {
         <p className="font-arabic text-primary text-sm mb-1">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
         <h2 className="text-2xl font-bold text-foreground mb-1">As-salamu alaykum 👋</h2>
         <p className="text-muted-foreground text-sm max-w-xl mx-auto">
-          I’m Ustadh AI — your Islamic companion for Quran, Hadith, Fiqh, and practical guidance.
+          I'm Ustadh AI — your Islamic companion for Quran, Hadith, Fiqh, and practical guidance.
         </p>
       </div>
 
@@ -753,13 +396,11 @@ const UstadhAI = () => {
         <span className="bg-card border border-border rounded-full px-3 py-1 text-foreground flex items-center gap-1">
           <Languages size={12} className="text-primary" /> {perks.modelLabel}
         </span>
-        {(['Uploads', 'Thinking', 'Web Search', 'TTS', 'Voice'] as const).map((label) => {
+        {(['Uploads', 'Thinking', 'Web Search'] as const).map((label) => {
           const key =
-            label === 'TTS'
-              ? 'tts'
-              : label === 'Web Search'
-                ? 'webSearch'
-                : (label.toLowerCase() as keyof typeof perks);
+            label === 'Web Search'
+              ? 'webSearch'
+              : (label.toLowerCase() as keyof typeof perks);
           const active = perks[key] as boolean;
           return (
             <span
@@ -791,18 +432,7 @@ const UstadhAI = () => {
             ))}
           </select>
         </div>
-
-        {voiceConversationActive && (
-          <span className="text-xs rounded-full border border-primary/30 bg-primary/10 text-foreground px-3 py-1 flex items-center gap-1">
-            {isListening ? <Loader2 size={12} className="animate-spin text-primary" /> : <Mic size={12} className="text-primary" />}
-            {isListening ? `Listening in ${selectedLanguageLabel}` : 'Voice mode active'}
-          </span>
-        )}
       </div>
-
-      {voiceDraft && voiceConversationActive && (
-        <div className="mb-3 text-xs text-center text-muted-foreground">Heard: “{voiceDraft}”</div>
-      )}
 
       <div className="flex justify-center mb-6">
         <div className="bg-secondary rounded-full px-4 py-2 flex items-center gap-2">
@@ -876,21 +506,6 @@ const UstadhAI = () => {
                   msg.content
                 )}
               </div>
-              {msg.role === 'assistant' && perks.tts && (
-                <button
-                  onClick={() => {
-                    void speakText(msg.content, i);
-                  }}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 transition-colors ${
-                    speakingMsgIndex === i
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                  }`}
-                  title="Read aloud"
-                >
-                  <Volume2 size={12} />
-                </button>
-              )}
               {msg.role === 'user' && (
                 <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
                   <User size={14} className="text-muted-foreground" />
@@ -946,22 +561,6 @@ const UstadhAI = () => {
               onChange={(e) => onAttachFiles(e.target.files)}
             />
           </label>
-
-          <button
-            type="button"
-            onClick={toggleVoiceConversation}
-            disabled={!perks.voice}
-            title={perks.voice ? 'Continuous voice conversation' : 'Voice conversation is for Imam AI'}
-            className={`transition-colors ${
-              perks.voice
-                ? voiceConversationActive
-                  ? 'text-primary'
-                  : 'text-foreground hover:text-primary'
-                : 'text-muted-foreground'
-            }`}
-          >
-            <Mic size={16} />
-          </button>
         </div>
 
         <input
@@ -976,7 +575,7 @@ const UstadhAI = () => {
                 : 'Daily limit reached. Upgrade for more.'
           }
           disabled={(!isUnlimited && remaining <= 0) || !usageLoaded}
-          className="w-full bg-card text-foreground placeholder:text-muted-foreground rounded-xl pl-16 pr-12 py-3.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+          className="w-full bg-card text-foreground placeholder:text-muted-foreground rounded-xl pl-12 pr-12 py-3.5 text-sm border border-border focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
         />
 
         <button
