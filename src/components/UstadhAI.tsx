@@ -61,12 +61,14 @@ const PLAN_LANGUAGES: Record<PlanName, string[]> = {
 };
 
 const PLAN_LIMITS: Record<PlanName, number> = {
-  free: 15,
+  free: 5,
   'Seeker AI': 50,
   'Student AI': 150,
   'Scholar AI': 500,
   'Imam AI': 999999,
 };
+
+const GUEST_LIMIT = 3;
 
 const normalizePlan = (rawPlan?: string | null): PlanName => {
   const value = (rawPlan || '').trim().toLowerCase();
@@ -84,7 +86,8 @@ const suggestedQuestions = [
   'Give me practical steps for daily dhikr and consistency.',
 ];
 
-const DEFAULT_LIMIT = 15;
+const DEFAULT_LIMIT = 5;
+const COOLDOWN_MS = 30_000; // 30s cooldown for free/guest users
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const planPerks: Record<PlanName, PlanPerkConfig> = {
@@ -131,6 +134,7 @@ const UstadhAI = () => {
   const [usageLoaded, setUsageLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [lastSentAt, setLastSentAt] = useState(0);
 
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -151,7 +155,7 @@ const UstadhAI = () => {
         else setQuestionsUsed(0);
       }
       setUsageLoaded(true);
-      setDailyLimit(DEFAULT_LIMIT);
+      setDailyLimit(GUEST_LIMIT);
       setCurrentPlan('free');
       setSelectedLanguage('en');
       return;
@@ -282,6 +286,18 @@ const UstadhAI = () => {
 
   const sendMessage = async (text: string) => {
     if ((!text.trim() && attachments.length === 0) || (!isUnlimited && remaining <= 0) || isLoading || !usageLoaded) return;
+
+    // Cooldown for free/guest users to prevent spam
+    const isFreeOrGuest = currentPlan === 'free';
+    if (isFreeOrGuest) {
+      const elapsed = Date.now() - lastSentAt;
+      if (lastSentAt > 0 && elapsed < COOLDOWN_MS) {
+        const secsLeft = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+        toast.error(`Please wait ${secsLeft}s before sending another message.`);
+        return;
+      }
+      setLastSentAt(Date.now());
+    }
 
     const attachmentNote = attachments.length ? `\n\n[Attached images: ${attachments.map((a) => a.name).join(', ')}]` : '';
     const userMsg: Message = { role: 'user', content: `${text.trim()}${attachmentNote}`.trim() };
