@@ -155,7 +155,7 @@ const UstadhAI = () => {
         else setQuestionsUsed(0);
       }
       setUsageLoaded(true);
-      setDailyLimit(DEFAULT_LIMIT);
+      setDailyLimit(GUEST_LIMIT);
       setCurrentPlan('free');
       setSelectedLanguage('en');
       return;
