@@ -25,7 +25,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const { priceId, returnUrl, returnOrigin } = await req.json();
+    const { priceId, returnUrl, returnOrigin, embedded } = await req.json();
     if (!priceId) throw new Error("Missing priceId");
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -42,23 +42,40 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    // Use the full return URL from the frontend (supports iframe embedding)
-    // Strip any existing query params and append checkout status
+    if (embedded) {
+      // Embedded checkout mode — returns client_secret
+      let baseUrl = returnUrl || returnOrigin || req.headers.get("origin") || "https://iatlibrary.netlify.app";
+      baseUrl = baseUrl.replace(/\/?\??$/, '');
+      const separator = baseUrl.includes('?') ? '&' : '?';
+
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        customer_email: customerId ? undefined : user.email,
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "payment",
+        ui_mode: "embedded",
+        return_url: `${baseUrl}${separator}checkout=success`,
+        metadata: { user_id: user.id },
+      });
+
+      return new Response(JSON.stringify({ clientSecret: session.client_secret }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // Legacy redirect mode
     let baseUrl = returnUrl || returnOrigin || req.headers.get("origin") || "https://iatlibrary.netlify.app";
-    // Remove trailing slash and any existing query string for clean append
     baseUrl = baseUrl.replace(/\/?\??$/, '');
     const separator = baseUrl.includes('?') ? '&' : '?';
-
-    const successUrl = `${baseUrl}${separator}checkout=success`;
-    const cancelUrl = `${baseUrl}${separator}checkout=cancel`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      success_url: `${baseUrl}${separator}checkout=success`,
+      cancel_url: `${baseUrl}${separator}checkout=cancel`,
       metadata: { user_id: user.id },
     });
 
