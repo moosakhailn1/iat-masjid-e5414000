@@ -593,6 +593,12 @@ const UstadhAI = () => {
           <Send size={18} />
         </button>
       </div>
+
+      {!user && usageLoaded && (
+        <p className="text-center text-muted-foreground text-xs mt-2">
+          Sign up for a free account to get <span className="text-primary font-medium">5 messages/day</span> instead of {GUEST_LIMIT}!
+        </p>
+      )}
     </div>
   );
 };
