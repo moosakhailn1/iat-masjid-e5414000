@@ -310,29 +310,18 @@ export type Database = {
       }
     }
     Views: {
-      site_settings_public: {
-        Row: {
-          id: string | null
-          key: string | null
-          published_value: Json | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string | null
-          key?: string | null
-          published_value?: Json | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string | null
-          key?: string | null
-          published_value?: Json | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
+      get_published_settings: {
+        Args: never
+        Returns: {
+          id: string
+          key: string
+          published_value: Json
+          updated_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
