@@ -86,7 +86,8 @@ const suggestedQuestions = [
   'Give me practical steps for daily dhikr and consistency.',
 ];
 
-const DEFAULT_LIMIT = 15;
+const DEFAULT_LIMIT = 5;
+const COOLDOWN_MS = 30_000; // 30s cooldown for free/guest users
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ustadh-ai`;
 
 const planPerks: Record<PlanName, PlanPerkConfig> = {
