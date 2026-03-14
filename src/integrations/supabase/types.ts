@@ -313,6 +313,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_published_settings: {
+        Args: never
+        Returns: {
+          id: string
+          key: string
+          published_value: Json
+          updated_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
