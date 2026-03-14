@@ -313,6 +313,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_active_discount_codes: {
+        Args: never
+        Returns: {
+          code: string
+          discount_percent: number
+          display_mode: string
+          id: string
+          plan: string
+        }[]
+      }
       get_published_settings: {
         Args: never
         Returns: {
