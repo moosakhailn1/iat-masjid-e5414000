@@ -310,7 +310,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      site_settings_public: {
+        Row: {
+          id: string | null
+          key: string | null
+          published_value: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          key?: string | null
+          published_value?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          key?: string | null
+          published_value?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
