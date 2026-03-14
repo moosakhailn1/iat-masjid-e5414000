@@ -61,12 +61,14 @@ const PLAN_LANGUAGES: Record<PlanName, string[]> = {
 };
 
 const PLAN_LIMITS: Record<PlanName, number> = {
-  free: 15,
+  free: 5,
   'Seeker AI': 50,
   'Student AI': 150,
   'Scholar AI': 500,
   'Imam AI': 999999,
 };
+
+const GUEST_LIMIT = 3;
 
 const normalizePlan = (rawPlan?: string | null): PlanName => {
   const value = (rawPlan || '').trim().toLowerCase();
