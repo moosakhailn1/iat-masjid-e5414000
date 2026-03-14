@@ -197,7 +197,6 @@ LANGUAGE RULE (CRITICAL):
       },
       body: JSON.stringify({
         model,
-        temperature: 0.35,
         stream: true,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
