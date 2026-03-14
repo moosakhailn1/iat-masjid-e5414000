@@ -287,6 +287,18 @@ const UstadhAI = () => {
   const sendMessage = async (text: string) => {
     if ((!text.trim() && attachments.length === 0) || (!isUnlimited && remaining <= 0) || isLoading || !usageLoaded) return;
 
+    // Cooldown for free/guest users to prevent spam
+    const isFreeOrGuest = currentPlan === 'free';
+    if (isFreeOrGuest) {
+      const elapsed = Date.now() - lastSentAt;
+      if (lastSentAt > 0 && elapsed < COOLDOWN_MS) {
+        const secsLeft = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+        toast.error(`Please wait ${secsLeft}s before sending another message.`);
+        return;
+      }
+      setLastSentAt(Date.now());
+    }
+
     const attachmentNote = attachments.length ? `\n\n[Attached images: ${attachments.map((a) => a.name).join(', ')}]` : '';
     const userMsg: Message = { role: 'user', content: `${text.trim()}${attachmentNote}`.trim() };
     const newMessages = [...messages, userMsg];
