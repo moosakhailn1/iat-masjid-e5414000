@@ -6,8 +6,8 @@
 
 [[redirects]]
   from = "/islam"
-  to = "/islam/index.html"
-  status = 200
+  to = "/islam/"
+  status = 301
 
 [[redirects]]
   from = "/islam/*"
