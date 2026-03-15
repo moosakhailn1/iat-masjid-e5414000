@@ -5,6 +5,11 @@
   publish = "."
 
 [[redirects]]
+  from = "/islam"
+  to = "/islam/index.html"
+  status = 200
+
+[[redirects]]
   from = "/islam/*"
   to = "/islam/index.html"
   status = 200
