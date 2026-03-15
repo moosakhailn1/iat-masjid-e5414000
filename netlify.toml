@@ -1,5 +1,9 @@
 # Netlify configuration — only catch /islam/ SPA routes
 
+[build]
+  command = "cd islam && npm install && npm run build && cp -r dist/. ."
+  publish = "."
+
 [[redirects]]
   from = "/islam/*"
   to = "/islam/index.html"
