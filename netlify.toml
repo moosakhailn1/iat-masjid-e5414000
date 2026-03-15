@@ -2,6 +2,7 @@
 # Ensures SPA routes (including OAuth return paths) are served by index.html
 
 [build]
+  command = "npm run build"
   publish = "dist"
 
 [[redirects]]
