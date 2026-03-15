@@ -1,9 +1,11 @@
+# Netlify configuration
+# Ensures SPA routes are served by index.html
+
 [build]
-  base = "iat"
-  command = "cd islam && npm run build && cp -r dist/. ."
-  publish = "."
+  command = "npm run build"
+  publish = "dist"
 
 [[redirects]]
-  from = "/islam/*"
-  to = "/islam/index.html"
+  from = "/*"
+  to = "/index.html"
   status = 200
