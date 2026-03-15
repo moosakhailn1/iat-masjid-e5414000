@@ -1,11 +1,6 @@
-# Netlify configuration
-# Ensures SPA routes are served by index.html
-
-[build]
-  command = "npm run build"
-  publish = "dist"
+# Netlify configuration — only catch /islam/ SPA routes
 
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from = "/islam/*"
+  to = "/islam/index.html"
   status = 200
