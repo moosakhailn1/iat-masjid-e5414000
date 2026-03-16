@@ -754,7 +754,7 @@ export const khutbahs: Khutbah[] = [
 ];
 
 // ===================== SEERAH =====================
-export const seerahEvents: SeerahEvent[] = [
+const baseSeerahEvents: SeerahEvent[] = [
   {
     id: 's1',
     title: 'The Birth of Prophet Muhammad ﷺ',
