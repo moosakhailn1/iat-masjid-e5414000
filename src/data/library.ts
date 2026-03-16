@@ -1105,24 +1105,27 @@ const seerahExpansionTopics = [
   },
 ];
 
-const additionalSeerahEvents: SeerahEvent[] = Array.from({ length: 88 }, (_, index) => {
-  const item = seerahExpansionTopics[index % seerahExpansionTopics.length];
-  const cycle = Math.floor(index / seerahExpansionTopics.length) + 1;
-  const idNumber = index + 13;
+const additionalSeerahEvents: SeerahEvent[] = Array.from(
+  { length: Math.max(0, TARGET_LIBRARY_ITEMS - baseSeerahEvents.length) },
+  (_, index) => {
+    const item = seerahExpansionTopics[index % seerahExpansionTopics.length];
+    const cycle = Math.floor(index / seerahExpansionTopics.length) + 1;
+    const idNumber = baseSeerahEvents.length + index + 1;
 
-  return {
-    id: `s${idNumber}`,
-    title: `${item.title} (Study ${cycle})`,
-    arabic: item.arabic,
-    english: `${item.english} Study focus ${cycle} links this event to practical faith and character development.`,
-    pashto: `${item.pashto} د مطالعې تمرکز ${cycle} دا پیښه د ایمان او اخلاقو له عملي درسونو سره تړي.`,
-    dari: `${item.dari} تمرکز مطالعه ${cycle} این رویداد را به درس های عملی ایمان و اخلاق پیوند می دهد.`,
-    year: item.year,
-    source: item.source,
-    category: seerahExpansionCategories[index % seerahExpansionCategories.length],
-    details: `Lesson ${cycle}: ${item.english} This entry is part of the extended seerah library for study, teaching, and daily reflection.`,
-  };
-});
+    return {
+      id: `s${idNumber}`,
+      title: `${item.title} (Study ${cycle})`,
+      arabic: item.arabic,
+      english: `${item.english} Study focus ${cycle} links this event to practical faith and character development.`,
+      pashto: `${item.pashto} د مطالعې تمرکز ${cycle} دا پیښه د ایمان او اخلاقو له عملي درسونو سره تړي.`,
+      dari: `${item.dari} تمرکز مطالعه ${cycle} این رویداد را به درس های عملی ایمان و اخلاق پیوند می دهد.`,
+      year: item.year,
+      source: item.source,
+      category: seerahExpansionCategories[index % seerahExpansionCategories.length],
+      details: `Lesson ${cycle}: ${item.english} This entry is part of the extended seerah library for study, teaching, and daily reflection.`,
+    };
+  },
+);
 
 export const seerahEvents: SeerahEvent[] = [...baseSeerahEvents, ...additionalSeerahEvents];
 
