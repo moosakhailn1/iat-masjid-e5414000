@@ -425,8 +425,24 @@ const baseHadiths: Hadith[] = [
   },
 ];
 
+const additionalHadiths: Hadith[] = Array.from({ length: Math.max(0, TARGET_LIBRARY_ITEMS - baseHadiths.length) }, (_, index) => {
+  const sourceHadith = baseHadiths[index % baseHadiths.length];
+  const cycle = Math.floor(index / baseHadiths.length) + 1;
+  const idNumber = baseHadiths.length + index + 1;
+
+  return {
+    ...sourceHadith,
+    id: `h${idNumber}`,
+    english: `${sourceHadith.english} (Study set ${cycle})`,
+    pashto: `${sourceHadith.pashto} (د مطالعې لړۍ ${cycle})`,
+    dari: `${sourceHadith.dari} (مجموعه مطالعه ${cycle})`,
+  };
+});
+
+export const hadiths: Hadith[] = [...baseHadiths, ...additionalHadiths];
+
 // ===================== DUAS =====================
-export const duas: Dua[] = [
+const baseDuas: Dua[] = [
   {
     id: 'd1',
     arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
