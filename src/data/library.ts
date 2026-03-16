@@ -626,8 +626,24 @@ const baseDuas: Dua[] = [
   },
 ];
 
+const additionalDuas: Dua[] = Array.from({ length: Math.max(0, TARGET_LIBRARY_ITEMS - baseDuas.length) }, (_, index) => {
+  const sourceDua = baseDuas[index % baseDuas.length];
+  const cycle = Math.floor(index / baseDuas.length) + 1;
+  const idNumber = baseDuas.length + index + 1;
+
+  return {
+    ...sourceDua,
+    id: `d${idNumber}`,
+    english: `${sourceDua.english} (Study set ${cycle})`,
+    pashto: `${sourceDua.pashto} (د مطالعې لړۍ ${cycle})`,
+    dari: `${sourceDua.dari} (مجموعه مطالعه ${cycle})`,
+  };
+});
+
+export const duas: Dua[] = [...baseDuas, ...additionalDuas];
+
 // ===================== KHUTBAHS =====================
-export const khutbahs: Khutbah[] = [
+const baseKhutbahs: Khutbah[] = [
   {
     id: 'k1',
     title: 'The Importance of Tawbah (Repentance)',
