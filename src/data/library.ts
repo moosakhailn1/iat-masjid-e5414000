@@ -55,8 +55,10 @@ export const categories: Category[] = ['Faith', 'Prayer', 'Fasting', 'Charity', 
 
 export const seerahCategories = ['Makkah Period', 'Madinah Period', 'Key Battles', 'Treaties & Events', 'Final Years'] as const;
 
+const TARGET_LIBRARY_ITEMS = 100;
+
 // ===================== HADITHS =====================
-export const hadiths: Hadith[] = [
+const baseHadiths: Hadith[] = [
   {
     id: 'h1',
     arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ',
