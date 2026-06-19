@@ -35,7 +35,7 @@ const AuthPage = () => {
         password,
         options: {
           data: { display_name: displayName },
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/islam/`,
         },
       });
       if (error) {
@@ -54,7 +54,7 @@ const AuthPage = () => {
       return;
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/islam/reset-password`,
     });
     if (error) toast.error(error.message);
     else toast.success('Password reset email sent!');
