@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_recovery: {
+        Row: {
+          code_hash: string
+          created_at: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code_hash: string
+          created_at?: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code_hash?: string
+          created_at?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_daily_usage: {
         Row: {
           count: number
@@ -221,6 +242,33 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      signup_challenges: {
+        Row: {
+          answer: string
+          consumed: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+        }
+        Insert: {
+          answer: string
+          consumed?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+        }
+        Update: {
+          answer?: string
+          consumed?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
         }
         Relationships: []
       }
