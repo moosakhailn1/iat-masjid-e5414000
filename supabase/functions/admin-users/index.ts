@@ -113,6 +113,42 @@ serve(async (req) => {
         });
       }
 
+      case "list_recovery": {
+        const { data, error } = await supabase
+          .from("account_recovery")
+          .select("user_id, created_at, used_at");
+        if (error) throw error;
+        return new Response(JSON.stringify({ recovery: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "reset_recovery": {
+        if (!targetUserId) throw new Error("Missing targetUserId");
+        const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        const c = Array.from(bytes).map((b) => alphabet[b % alphabet.length]);
+        const code = `${c.slice(0, 4).join("")}-${c.slice(4, 8).join("")}-${c.slice(8, 12).join("")}-${c.slice(12, 16).join("")}`;
+        const digest = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(`${targetUserId}:${code}`),
+        );
+        const code_hash = Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        const { error } = await supabase.from("account_recovery").upsert({
+          user_id: targetUserId,
+          code_hash,
+          created_at: new Date().toISOString(),
+          used_at: null,
+        });
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true, recoveryCode: code }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       case "list_roles": {
         const { data, error } = await supabase.from("user_roles").select("*");
         if (error) throw error;
