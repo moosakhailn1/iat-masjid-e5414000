@@ -253,7 +253,20 @@ const AdminPanel = () => {
     { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
     { id: 'grants' as const, label: 'Free Grants', icon: Gift },
     { id: 'content' as const, label: 'Library Content', icon: BookOpen },
+    { id: 'recovery' as const, label: 'Recovery Codes', icon: Key },
   ];
+
+  const resetRecovery = async (userId: string, userEmail: string) => {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'reset_recovery', targetUserId: userId },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || 'Could not create a new recovery code');
+      return;
+    }
+    setNewRecoveryCode({ email: userEmail, code: data.recoveryCode });
+    loadData();
+  };
 
   return (
     <div className="min-h-screen bg-background">
