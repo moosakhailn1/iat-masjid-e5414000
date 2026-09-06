@@ -52,7 +52,7 @@ const AdminPanel = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes] = await Promise.all([
+    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes, recoveryRes] = await Promise.all([
       supabase.from('profiles').select('*'),
       supabase.from('discount_codes').select('*').order('created_at', { ascending: false }),
       supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false }),
