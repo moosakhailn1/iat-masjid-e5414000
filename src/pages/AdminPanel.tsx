@@ -59,9 +59,11 @@ const AdminPanel = () => {
       supabase.from('payment_links').select('*'),
       supabase.from('library_content').select('*').order('created_at', { ascending: false }),
       supabase.functions.invoke('admin-users', { body: { action: 'list_roles' } }),
+      supabase.functions.invoke('admin-users', { body: { action: 'list_recovery' } }),
     ]);
     setUsers(profilesRes.data || []);
     setUserRoles(rolesRes.data?.roles || []);
+    setRecoveryRows(recoveryRes.data?.recovery || []);
     setDiscounts(discountsRes.data || []);
     setSubscriptions(subsRes.data || []);
     const links = linksRes.data || [];
