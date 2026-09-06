@@ -309,6 +309,63 @@ const AdminPanel = () => {
           <p className="text-muted-foreground text-center py-12">Loading...</p>
         ) : (
           <>
+            {tab === 'recovery' && (
+              <div className="space-y-4">
+                {newRecoveryCode && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10002] px-4">
+                    <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm space-y-4 text-center">
+                      <h3 className="text-foreground font-semibold">New recovery code</h3>
+                      <p className="text-muted-foreground text-sm">For {newRecoveryCode.email}. Shown once — copy it now.</p>
+                      <div className="bg-secondary border border-border rounded-lg px-4 py-3 font-mono text-primary tracking-wider">
+                        {newRecoveryCode.code}
+                      </div>
+                      <button
+                        onClick={() => { navigator.clipboard?.writeText(newRecoveryCode.code); toast.success('Copied'); }}
+                        className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-muted"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => setNewRecoveryCode(null)}
+                        className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-muted-foreground text-sm">
+                  Codes are stored scrambled, so nobody (not even you) can read an existing code. You can issue a fresh
+                  one for anyone who lost theirs.
+                </p>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  {users.map(u => {
+                    const rec = recoveryRows.find(r => r.user_id === u.id);
+                    return (
+                      <div key={u.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border last:border-0 flex-wrap">
+                        <div>
+                          <p className="text-foreground text-sm">{u.email}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {!rec
+                              ? 'No recovery code yet'
+                              : rec.used_at
+                              ? `Used ${new Date(rec.used_at).toLocaleDateString()}`
+                              : `Active since ${new Date(rec.created_at).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => resetRecovery(u.id, u.email)}
+                          className="flex items-center gap-1 text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-lg hover:bg-muted"
+                        >
+                          <Key size={12} /> New code
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {tab === 'users' && (
               <div className="space-y-4">
                 {passwordModal && (
