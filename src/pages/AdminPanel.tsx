@@ -11,7 +11,7 @@ const CONTENT_TYPES = ['hadith', 'dua', 'khutbah', 'seerah'] as const;
 const AdminPanel = () => {
   const { user, isAdmin, isDev } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content'>('users');
+  const [tab, setTab] = useState<'users' | 'discounts' | 'grants' | 'payments' | 'content' | 'recovery'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -20,6 +20,8 @@ const AdminPanel = () => {
   const [newPassword, setNewPassword] = useState('');
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
   const [libraryContent, setLibraryContent] = useState<any[]>([]);
+  const [recoveryRows, setRecoveryRows] = useState<any[]>([]);
+  const [newRecoveryCode, setNewRecoveryCode] = useState<{ email: string; code: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [newCode, setNewCode] = useState('');
@@ -50,16 +52,18 @@ const AdminPanel = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes] = await Promise.all([
+    const [profilesRes, discountsRes, subsRes, linksRes, contentRes, rolesRes, recoveryRes] = await Promise.all([
       supabase.from('profiles').select('*'),
       supabase.from('discount_codes').select('*').order('created_at', { ascending: false }),
       supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false }),
       supabase.from('payment_links').select('*'),
       supabase.from('library_content').select('*').order('created_at', { ascending: false }),
       supabase.functions.invoke('admin-users', { body: { action: 'list_roles' } }),
+      supabase.functions.invoke('admin-users', { body: { action: 'list_recovery' } }),
     ]);
     setUsers(profilesRes.data || []);
     setUserRoles(rolesRes.data?.roles || []);
+    setRecoveryRows(recoveryRes.data?.recovery || []);
     setDiscounts(discountsRes.data || []);
     setSubscriptions(subsRes.data || []);
     const links = linksRes.data || [];
@@ -249,7 +253,20 @@ const AdminPanel = () => {
     { id: 'discounts' as const, label: 'Discount Codes', icon: Tag },
     { id: 'grants' as const, label: 'Free Grants', icon: Gift },
     { id: 'content' as const, label: 'Library Content', icon: BookOpen },
+    { id: 'recovery' as const, label: 'Recovery Codes', icon: Key },
   ];
+
+  const resetRecovery = async (userId: string, userEmail: string) => {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'reset_recovery', targetUserId: userId },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || 'Could not create a new recovery code');
+      return;
+    }
+    setNewRecoveryCode({ email: userEmail, code: data.recoveryCode });
+    loadData();
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -292,6 +309,63 @@ const AdminPanel = () => {
           <p className="text-muted-foreground text-center py-12">Loading...</p>
         ) : (
           <>
+            {tab === 'recovery' && (
+              <div className="space-y-4">
+                {newRecoveryCode && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10002] px-4">
+                    <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm space-y-4 text-center">
+                      <h3 className="text-foreground font-semibold">New recovery code</h3>
+                      <p className="text-muted-foreground text-sm">For {newRecoveryCode.email}. Shown once — copy it now.</p>
+                      <div className="bg-secondary border border-border rounded-lg px-4 py-3 font-mono text-primary tracking-wider">
+                        {newRecoveryCode.code}
+                      </div>
+                      <button
+                        onClick={() => { navigator.clipboard?.writeText(newRecoveryCode.code); toast.success('Copied'); }}
+                        className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-muted"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => setNewRecoveryCode(null)}
+                        className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-muted-foreground text-sm">
+                  Codes are stored scrambled, so nobody (not even you) can read an existing code. You can issue a fresh
+                  one for anyone who lost theirs.
+                </p>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  {users.map(u => {
+                    const rec = recoveryRows.find(r => r.user_id === u.id);
+                    return (
+                      <div key={u.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border last:border-0 flex-wrap">
+                        <div>
+                          <p className="text-foreground text-sm">{u.email}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {!rec
+                              ? 'No recovery code yet'
+                              : rec.used_at
+                              ? `Used ${new Date(rec.used_at).toLocaleDateString()}`
+                              : `Active since ${new Date(rec.created_at).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => resetRecovery(u.id, u.email)}
+                          className="flex items-center gap-1 text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-lg hover:bg-muted"
+                        >
+                          <Key size={12} /> New code
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {tab === 'users' && (
               <div className="space-y-4">
                 {passwordModal && (
