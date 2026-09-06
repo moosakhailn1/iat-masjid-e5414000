@@ -20,6 +20,8 @@ const AdminPanel = () => {
   const [newPassword, setNewPassword] = useState('');
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
   const [libraryContent, setLibraryContent] = useState<any[]>([]);
+  const [recoveryRows, setRecoveryRows] = useState<any[]>([]);
+  const [newRecoveryCode, setNewRecoveryCode] = useState<{ email: string; code: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [newCode, setNewCode] = useState('');
